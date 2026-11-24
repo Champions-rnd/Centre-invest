@@ -90,13 +90,13 @@
 .studio button.secondary, .studio .action-link { border-color: var(--control-line); }
 .studio select, .studio textarea, .studio input[type="search"] { background: #fff; border-color: var(--control-line); }
 .studio :is(.directory-heading, .archive-empty, .dossier-actions, .candidate-create fieldset, .home-upload fieldset) button:not(.secondary) {
-  background: var(--brand-green);
-  border-color: var(--brand-green);
-  color: #102c16;
+  background: #e0eadc;
+  border-color: #b8cbb5;
+  color: #24372a;
 }
 .studio :is(.directory-heading, .archive-empty, .dossier-actions, .candidate-create fieldset, .home-upload fieldset) button:not(.secondary):hover:enabled {
-  background: #459f3e;
-  border-color: #459f3e;
+  background: #d2e1ce;
+  border-color: #a6bea3;
 }
 
 .workspace-directory { padding-top: 26px; }
