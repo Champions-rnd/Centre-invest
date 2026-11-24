@@ -1,0 +1,40 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #172b25;
+  background: #eef3ef;
+  line-height: 1.5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1150px; margin: auto; padding: 2rem 1rem 4rem; }
+h1 { font-size: clamp(1.8rem, 4.5vw, 3rem); margin: 0 0 1.35rem; letter-spacing: -.04em; }
+h2 { margin: 0 0 1rem; font-size: 1.25rem; }
+h3, h4, p { margin: 0; }
+h4 { margin: .8rem 0 .2rem; }
+ul { margin: .2rem 0; padding-left: 1.25rem; }
+.panel { background: white; border: 1px solid #d9e4dc; padding: 1.25rem; border-radius: 1rem; min-width: 0; }
+fieldset { display: grid; gap: .85rem; padding: 0; border: 0; margin: 0; min-width: 0; }
+label { display: grid; gap: .35rem; font-weight: 600; }
+input, textarea { width: 100%; padding: .55rem; border: 1px solid #a8b8af; border-radius: .45rem; font: inherit; }
+textarea { resize: vertical; }
+button { font: inherit; font-weight: 650; color: white; background: #075645; border: 1px solid #075645; padding: .55rem .85rem; border-radius: .45rem; cursor: pointer; }
+button.secondary { background: white; color: #075645; }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #567fce; outline-offset: 2px; }
+.actions { display: flex; gap: .55rem; flex-wrap: wrap; }
+.results { margin-top: 1rem; display: grid; grid-template-columns: 1fr 1.25fr; gap: 1rem; align-items: start; }
+.muted { color: #495f55; }
+audio { display: block; width: 100%; }
+.transcript { list-style: none; padding: 0; margin: .7rem 0; }
+.transcript li, .finding { padding: .85rem 0; border-top: 1px solid #d9e4dc; }
+.speaker, .finding-heading { display: flex; align-items: baseline; gap: .45rem; flex-wrap: wrap; margin-bottom: .25rem; }
+.timestamp { color: #075645; font: 600 .85rem ui-monospace, monospace; }
+.link { background: transparent; text-decoration: underline; border: 0; padding: .1rem; }
+.status { font-size: .8rem; font-weight: 650; color: #184232; background: #e1efe7; border-radius: .4rem; padding: .15rem .4rem; }
+.status.partial, .status.missing { background: #fff0d9; color: #6d4216; }
+blockquote { margin: .55rem 0 0; border-left: 2px solid #83b19e; padding-left: .6rem; }
+.error, [role="alert"], [role="status"] { margin-top: .75rem; }
+.error, [role="alert"] { color: #912820; }
+@media (max-width: 720px) {
+  .results { grid-template-columns: 1fr; }
+}
