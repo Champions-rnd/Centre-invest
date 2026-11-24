@@ -23,12 +23,8 @@ button, input, textarea { font: inherit; }
 .header-inner, .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .header-inner { min-height: 80px; }
 .footer-inner { flex-wrap: wrap; min-height: 66px; padding-block: 12px; color: var(--muted); font-size: .86rem; }
-.brand { display: inline-flex; gap: 11px; align-items: center; text-decoration: none; line-height: 1.05; }
-.brand small { display: block; font-size: .67rem; letter-spacing: .19em; margin-bottom: 4px; }
-.brand strong { display: block; font-size: 1.08rem; font-weight: 800; letter-spacing: -.025em; }
-.brand-mark { height: 37px; width: 38px; display: flex; align-items: center; justify-content: center; gap: 3px; background: var(--green); border-radius: 8px; }
-.brand-mark i { width: 4px; height: 19px; border-radius: 2px; background: #fff; transform: skew(-25deg); }
-.brand-mark i:nth-child(2) { height: 24px; }
+.brand { display: block; flex-shrink: 0; }
+.brand img { display: block; width: clamp(145px, 19vw, 175px); height: auto; }
 nav { display: flex; flex-wrap: wrap; gap: 12px 30px; }
 nav a { color: #294435; text-decoration: none; font-weight: 650; font-size: .94rem; }
 nav a:hover { text-decoration: underline; }
@@ -138,6 +134,5 @@ blockquote { margin: .55rem 0 0; border-left: 3px solid #b5dbc0; padding-left: .
 }
 @media (max-width: 365px) {
   .prototype { padding: 6px 8px; font-size: .72rem; }
-  .brand strong { font-size: .94rem; }
   h1 { font-size: 2.4rem; }
 }

@@ -56,9 +56,8 @@ function App() {
     <>
       <header className="site-header">
         <div className="frame header-inner">
-          <a className="brand" href="#top" aria-label="Центр-инвест, начало страницы">
-            <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
-            <span><small>БАНК</small><strong>ЦЕНТР-ИНВЕСТ</strong></span>
+          <a className="brand" href="#top" aria-label="Банк Центр-инвест, начало страницы">
+            <img src={`${import.meta.env.BASE_URL}brand/centrinvest-logo.svg`} alt="" width={140} height={30} />
           </a>
           <nav aria-label="Разделы страницы">
             <a href="#intake">Новый разбор</a>
