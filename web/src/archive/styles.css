@@ -140,15 +140,18 @@
 }
 .directory-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .directory-search { min-width: min(280px, 100%); }
-.candidate-text-import {
+.candidate-attachments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.candidate-file-import {
   display: grid;
   gap: 6px;
-  margin-top: 14px;
+  align-content: start;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f5faf6;
 }
-.candidate-text-import > label { font-weight: 650; }
-.candidate-text-import > p { font-size: .86rem; }
-.candidate-text-import input[type="file"] { max-width: 100%; background: #fff; }
+.candidate-file-import > label { font-weight: 650; }
+.candidate-file-import > p { font-size: .86rem; }
+.candidate-file-import input[type="file"] { max-width: 100%; background: #fff; }
+.candidate-file-import > button { justify-self: start; }
+@media (max-width: 590px) { .candidate-attachments { grid-template-columns: 1fr; } }

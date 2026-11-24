@@ -4,11 +4,11 @@ import type { ArchiveInterview, Candidate, CandidateDetail, CandidateProfile, Ca
 import type { Segment } from '../../shared/contracts'
 import {
   archiveDownload, createCandidate, loadCandidate, loadCandidates, loadArchiveInterviews, loadInterview,
-  saveCandidateStatus, saveInterviewTranscript,
+  saveCandidateStatus, saveInterviewTranscript, submitInterview,
 } from './api'
 import { CandidateDossier } from './archive/CandidateDossier'
 import { CandidateDirectory } from './archive/CandidateDirectory'
-import { CandidateProfileForm } from './archive/CandidateProfileForm'
+import { CandidateProfileForm, type CandidateRecording } from './archive/CandidateProfileForm'
 import { Dashboard } from './archive/Dashboard'
 import { InterviewForm } from './intake/InterviewForm'
 import './styles.css'
@@ -83,12 +83,14 @@ function App() {
       .sort((a, b) => a.name.localeCompare(b.name, 'ru')))
   }
 
-  function saveCandidate(id: string, profile: CandidateProfile) {
+  function saveCandidate(id: string, profile: CandidateProfile, recording?: CandidateRecording) {
     if (busy) return
-    void run('Сохраняем карточку…', async () => {
-      const candidate = await createCandidate(id, profile)
+    void run(recording ? 'Загружаем WAV…' : 'Сохраняем карточку…', async () => {
+      const interview = recording && await submitInterview(recording.file, null, { profile, newCandidateId: id }, recording.uploadId,
+        percent => setPending(percent === null ? 'Распознаём интервью…' : `Загружаем WAV · ${percent}%`))
+      const candidate = interview ? await loadCandidate(interview.candidateId) : await createCandidate(id, profile)
       rememberCandidate(candidate)
-      setScreen({ view: 'dossier', candidate })
+      setScreen({ view: 'dossier', candidate, interview })
     })
   }
 

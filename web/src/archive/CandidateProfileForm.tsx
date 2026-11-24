@@ -1,5 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { candidateProfileSchema, type CandidateProfile } from '../../../shared/archive'
+import { MAX_AUDIO_MB } from '../../../shared/contracts'
+import { isSupportedWav } from '../intake/wav'
 import { MAX_CANDIDATE_TEXT_BYTES, parseCandidateText } from './candidateText'
 
 export function readCandidateProfile(fields: FormData, prefix = '') {
@@ -40,16 +42,21 @@ export function CandidateProfileFields({ prefix = '', imported }: { prefix?: str
   </>
 }
 
+export type CandidateRecording = { file: File; uploadId: string }
+
 export function CandidateProfileForm({ busy, onSave }: {
   busy: boolean
-  onSave: (id: string, profile: CandidateProfile) => void
+  onSave: (id: string, profile: CandidateProfile, recording?: CandidateRecording) => void
 }) {
   const id = useRef<string | undefined>(undefined)
+  const wavInput = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [specialty, setSpecialty] = useState('')
   const [notes, setNotes] = useState('')
   const [importMessage, setImportMessage] = useState('')
   const [reading, setReading] = useState(false)
+  const [recording, setRecording] = useState<CandidateRecording>()
+  const wavError = recording && !isSupportedWav(recording.file) ? `Выберите непустой WAV до ${MAX_AUDIO_MB} МБ.` : ''
 
   async function importText(file: File) {
     setError('')
@@ -73,6 +80,7 @@ export function CandidateProfileForm({ busy, onSave }: {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (busy || reading || wavError) return
     const parsed = readCandidateProfile(new FormData(event.currentTarget))
     if (!parsed.success) {
       setError('Укажите ФИО и специальность кандидата.')
@@ -80,30 +88,48 @@ export function CandidateProfileForm({ busy, onSave }: {
     }
     id.current ??= crypto.randomUUID()
     setError('')
-    onSave(id.current, parsed.data)
+    onSave(id.current, parsed.data, recording)
   }
 
   return (
     <section className="panel candidate-create" aria-labelledby="candidate-create-title">
       <h1 id="candidate-create-title" tabIndex={-1}>Новый кандидат</h1>
-      <p className="muted">Запись интервью можно прикрепить после сохранения карточки.</p>
       <form onSubmit={submit}>
         <fieldset disabled={busy || reading}>
-          <div className="candidate-text-import">
-            <label htmlFor="candidate-text">Импорт из TXT</label>
-            <p className="muted" id="candidate-text-help">
-              В файле укажите «Специальность: …» и «Описание: …» или напишите специальность в первой строке, а описание ниже.
-            </p>
-            <input id="candidate-text" type="file" accept=".txt,text/plain" aria-describedby="candidate-text-help"
-              onChange={event => {
-                const file = event.currentTarget.files?.[0]
-                event.currentTarget.value = ''
-                if (file) void importText(file)
-              }} />
-            {importMessage && <p role="status">{importMessage}</p>}
+          <div className="candidate-attachments">
+            <div className="candidate-file-import">
+              <label htmlFor="candidate-text">Импорт из TXT</label>
+              <p className="muted" id="candidate-text-help">
+                «Специальность: …» и «Описание: …» или специальность в первой строке, описание ниже.
+              </p>
+              <input id="candidate-text" type="file" accept=".txt,text/plain" aria-describedby="candidate-text-help"
+                onChange={event => {
+                  const file = event.currentTarget.files?.[0]
+                  event.currentTarget.value = ''
+                  if (file) void importText(file)
+                }} />
+              {importMessage && <p role="status">{importMessage}</p>}
+            </div>
+            <div className="candidate-file-import">
+              <label htmlFor="candidate-wav">Интервью из WAV</label>
+              <p className="muted" id="candidate-wav-help">До {MAX_AUDIO_MB} МБ и 60 минут. Расшифруем при сохранении.</p>
+              <input id="candidate-wav" ref={wavInput} type="file" accept=".wav,audio/wav,audio/x-wav"
+                aria-describedby={wavError ? 'candidate-wav-help candidate-wav-error' : 'candidate-wav-help'}
+                aria-invalid={Boolean(wavError)} onChange={event => {
+                  const file = event.currentTarget.files?.[0]
+                  setRecording(file && { file, uploadId: crypto.randomUUID() })
+                }} />
+              {wavError && <p id="candidate-wav-error" role="alert">{wavError}</p>}
+              {recording && <button className="secondary upload-remove" type="button" onClick={() => {
+                if (wavInput.current) wavInput.current.value = ''
+                setRecording(undefined)
+              }}>Убрать WAV</button>}
+            </div>
           </div>
           <div className="vacancy-grid"><CandidateProfileFields imported={{ specialty, notes, setSpecialty, setNotes }} /></div>
-          <button type="submit">Сохранить кандидата</button>
+          <button type="submit" disabled={Boolean(wavError)}>
+            {recording ? 'Сохранить кандидата и расшифровать WAV' : 'Сохранить кандидата'}
+          </button>
         </fieldset>
         {error && <p role="alert">{error}</p>}
       </form>

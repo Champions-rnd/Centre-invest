@@ -3,6 +3,7 @@ import { candidateTargetSchema, type Candidate, type CandidateTarget, type Saved
 import { MAX_AUDIO_MB, vacancySchema, type Vacancy } from '../../../shared/contracts'
 import { submitInterview } from '../api'
 import { CandidateProfileFields, readCandidateProfile } from '../archive/CandidateProfileForm'
+import { isSupportedWav } from './wav'
 import './styles.css'
 
 type Selection = { id: string; file: File }
@@ -79,7 +80,7 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
 
   function selectFiles(incoming: File[]) {
     if (running.current) return
-    const valid = incoming.filter(file => /\.wav$/i.test(file.name) && file.size > 0 && file.size <= MAX_AUDIO_MB * 1024 * 1024)
+    const valid = incoming.filter(isSupportedWav)
     const added = valid.map(file => ({ id: crypto.randomUUID(), file }))
     setFiles(current => [...current, ...added])
     const rejected = incoming.length - valid.length
