@@ -22,6 +22,7 @@ export function CandidateDossier({ candidate, interview, busy, onAdd, onIntervie
     <>
       <section className="archive-intro dossier-intro" aria-labelledby="dossier-title">
         <div>
+          <p className="muted">Личное дело</p>
           <span className="specialty-label">{candidate.specialty}</span>
           <h1 id="dossier-title" tabIndex={-1}>{candidate.name}</h1>
           {(candidate.experience || candidate.salary) && <p className="muted">
@@ -30,13 +31,13 @@ export function CandidateDossier({ candidate, interview, busy, onAdd, onIntervie
           {candidate.notes && <p className="dossier-notes">{candidate.notes}</p>}
         </div>
         <div className="dossier-actions">
-          <label className="sort-field">Статус досье
+          <label className="sort-field">Статус личного дела
             <select disabled={busy} value={candidate.status} onChange={event => onStatus(event.target.value as CandidateStatus)}>
               {Object.entries(candidateStatuses).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
           {candidate.interviews.length > 0 && <a className="action-link" href={archiveDownload(candidate.id)} download>Excel кандидата</a>}
-          <button type="button" disabled={busy} onClick={onAdd}>Прикрепить интервью</button>
+          <button type="button" disabled={busy} onClick={onAdd}>Загрузить интервью</button>
         </div>
       </section>
       <section className="panel interview-history" aria-labelledby="history-title">

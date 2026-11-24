@@ -155,7 +155,7 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
       <div className="section-head">
         <h2 id="intake-title" tabIndex={-1}>Загрузка интервью</h2>
         {selectedCandidate && <p><strong>{selectedCandidate.name}</strong> · {selectedCandidate.specialty}</p>}
-        <p className="muted">Выберите один или несколько WAV. Расшифровки сохранятся в досье кандидатов.</p>
+        <p className="muted">Выберите один или несколько WAV. Расшифровки сохранятся в личных делах кандидатов.</p>
       </div>
       <form onSubmit={handleSubmit}>
         <fieldset disabled={active}>

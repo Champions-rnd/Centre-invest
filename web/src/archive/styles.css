@@ -125,7 +125,8 @@
   .archive-toolbar .filter-search { grid-column: 1 / -1; }
 }
 
-.candidate-create { margin-top: 24px; max-width: 720px; }
+.candidate-create { margin: 24px auto 0; max-width: 720px; }
+.candidate-create h1 { text-align: center; }
 .candidate-create fieldset > button { margin-top: 14px; }
 .candidate-create input {
   width: 100%;
@@ -137,6 +138,7 @@
   padding: 8px 10px;
   font-weight: 400;
 }
+.directory-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .directory-search { min-width: min(280px, 100%); }
 .candidate-text-import {
   display: grid;

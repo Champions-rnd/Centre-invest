@@ -40,7 +40,7 @@ export function Dashboard({ interviews, busy, onOpen, onAdd }: Props) {
             {specialties.map(name => <option key={name}>{name}</option>)}
           </select>
         </label>
-        <label className="sort-field">Статус досье
+        <label className="sort-field">Статус личного дела
           <select value={status} onChange={event => setStatus(event.target.value as CandidateStatus | '')}>
             <option value="">Все статусы</option>
             {Object.entries(candidateStatuses).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -64,8 +64,8 @@ export function Dashboard({ interviews, busy, onOpen, onAdd }: Props) {
                 <small className="muted">{formatDate(createdAt)}</small>
               </div>
               <div className="interview-card-actions">
-                <button className="secondary" type="button" disabled={busy} aria-label={`Открыть досье: ${candidate.name}`}
-                  onClick={() => onOpen(candidate.id)}>Досье</button>
+                <button className="secondary" type="button" disabled={busy} aria-label={`Открыть личное дело: ${candidate.name}`}
+                  onClick={() => onOpen(candidate.id)}>Личное дело</button>
                 <button type="button" disabled={busy} aria-label={`Открыть интервью: ${fileName}`}
                   onClick={() => onOpen(candidate.id, id)}>Открыть</button>
               </div>
@@ -76,7 +76,7 @@ export function Dashboard({ interviews, busy, onOpen, onAdd }: Props) {
         <h3>{interviews.length ? 'Ничего не найдено' : 'Интервью пока нет'}</h3>
         {interviews.length ? <button type="button" className="secondary" onClick={() => { setQuery(''); setSpecialty(''); setStatus('') }}>
           Сбросить фильтры
-        </button> : <button type="button" disabled={busy} onClick={onAdd}>Добавить первое интервью</button>}
+        </button> : <button type="button" disabled={busy} onClick={onAdd}>Создать или открыть личное дело</button>}
       </div>}
     </section>
   )

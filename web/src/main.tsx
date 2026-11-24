@@ -16,7 +16,6 @@ import './archive/styles.css'
 
 type Screen =
   | { view: 'dashboard' }
-  | { view: 'candidates' }
   | { view: 'new-candidate' }
   | { view: 'upload'; attachTo?: string }
   | { view: 'dossier'; candidate: CandidateDetail; interview?: SavedInterview }
@@ -34,7 +33,7 @@ function App() {
   const [error, setError] = useState('')
   const busy = Boolean(pending)
   const heading = screen.view === 'dashboard' ? 'archive-title' : screen.view === 'upload' ? 'intake-title'
-    : screen.view === 'candidates' ? 'candidate-directory-title' : screen.view === 'new-candidate' ? 'candidate-create-title'
+    : screen.view === 'new-candidate' ? 'candidate-create-title'
     : screen.interview ? 'report-title' : 'dossier-title'
 
   function refresh() {
@@ -95,7 +94,7 @@ function App() {
 
   function openCandidate(id: string, interviewId?: string) {
     if (busy) return
-    void run(interviewId ? 'Открываем интервью…' : 'Открываем досье…', async () => {
+    void run(interviewId ? 'Открываем интервью…' : 'Открываем личное дело…', async () => {
       const [candidate, interview] = await Promise.all([loadCandidate(id), interviewId && loadInterview(interviewId)])
       setScreen({ view: 'dossier', candidate, interview: interview || undefined })
     })
@@ -149,14 +148,9 @@ function App() {
           <div className="header-actions">
             {screen.view !== 'dashboard' && <button className="secondary" disabled={busy} type="button"
               onClick={goHome}>На главную</button>}
-            {screen.view !== 'candidates' && <button className="secondary" disabled={busy} type="button"
-              onClick={() => navigate({ view: 'candidates' })}>Кандидаты</button>}
             {screen.view !== 'upload' && <a className="action-link" href={archiveDownload()} download>Выгрузить Excel</a>}
-            {screen.view !== 'upload' && screen.view !== 'new-candidate' && <>
-              {screen.view === 'dashboard' && !!archive?.length && <button className="secondary" disabled={busy}
-                type="button" onClick={() => openUpload()}>Загрузить интервью</button>}
-              <button disabled={busy} type="button" onClick={() => navigate({ view: 'new-candidate' })}>+ Добавить кандидата</button>
-            </>}
+            {screen.view !== 'upload' && screen.view !== 'new-candidate' && <button disabled={busy} type="button"
+              onClick={() => navigate({ view: 'new-candidate' })}>+ Добавить кандидата</button>}
           </div>
         </div>
       </header>
@@ -164,22 +158,22 @@ function App() {
         {pending && <p className="panel archive-feedback" role="status">{pending}</p>}
         {error && <div className="panel archive-feedback">
           <p role="alert">{error}</p>
-          {(screen.view === 'dashboard' || screen.view === 'candidates') &&
+          {(screen.view === 'dashboard' || screen.view === 'new-candidate') &&
             <button type="button" className="secondary" onClick={refresh}>Обновить архив</button>}
         </div>}
         <div hidden={screen.view !== 'dashboard'}>{archive
-          ? <Dashboard interviews={archive} busy={busy} onOpen={openCandidate} onAdd={() => openUpload()} />
+          ? <Dashboard interviews={archive} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'new-candidate' })} />
           : !error && <p className="archive-feedback" role="status">Загружаем архив…</p>}</div>
         <div className="upload-screen" hidden={screen.view !== 'upload'}>
           <InterviewForm candidates={candidates ?? []} candidateId={uploadCandidateId}
             attachTo={screen.view === 'upload' ? screen.attachTo : undefined} onCandidate={setUploadCandidateId}
             onSaved={interviewSaved} onOpen={openCandidate} />
         </div>
-        {screen.view === 'candidates' && (candidates
-          ? <CandidateDirectory candidates={candidates} busy={busy} onAdd={() => navigate({ view: 'new-candidate' })}
-            onOpen={openCandidate} onAttach={openUpload} />
-          : !error && <p className="archive-feedback" role="status">Загружаем кандидатов…</p>)}
-        {screen.view === 'new-candidate' && <CandidateProfileForm busy={busy} onSave={saveCandidate} />}
+        {screen.view === 'new-candidate' && <>
+          <CandidateProfileForm busy={busy} onSave={saveCandidate} />
+          {!!candidates?.length && <CandidateDirectory candidates={candidates} busy={busy}
+            onOpen={openCandidate} onBatch={() => openUpload()} />}
+        </>}
         {screen.view === 'dossier' && <CandidateDossier candidate={screen.candidate} interview={screen.interview} busy={busy}
           onAdd={() => openUpload(screen.candidate.id)}
           onInterview={id => openInterview(screen.candidate, id)}

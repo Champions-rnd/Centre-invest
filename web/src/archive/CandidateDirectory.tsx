@@ -5,12 +5,11 @@ import { formatDate } from './format'
 type Props = {
   candidates: Candidate[]
   busy: boolean
-  onAdd: () => void
   onOpen: (id: string) => void
-  onAttach: (id: string) => void
+  onBatch: () => void
 }
 
-export function CandidateDirectory({ candidates, busy, onAdd, onOpen, onAttach }: Props) {
+export function CandidateDirectory({ candidates, busy, onOpen, onBatch }: Props) {
   const [query, setQuery] = useState('')
   const search = query.trim().toLocaleLowerCase('ru')
   const matches = candidates.filter(candidate => [candidate.name, candidate.specialty, candidate.notes]
@@ -20,12 +19,15 @@ export function CandidateDirectory({ candidates, busy, onAdd, onOpen, onAttach }
     <section className="interview-dashboard" aria-labelledby="candidate-directory-title">
       <div className="list-heading">
         <div>
-          <h1 id="candidate-directory-title" tabIndex={-1}>Кандидаты</h1>
+          <h2 id="candidate-directory-title">Личные дела</h2>
           <p className="muted">Показано {matches.length} из {candidates.length}</p>
         </div>
-        <label className="filter-search directory-search">Поиск
-          <input type="search" placeholder="ФИО или специальность" value={query} onChange={event => setQuery(event.target.value)} />
-        </label>
+        <div className="directory-actions">
+          <label className="filter-search directory-search">Поиск
+            <input type="search" placeholder="ФИО или специальность" value={query} onChange={event => setQuery(event.target.value)} />
+          </label>
+          <button className="secondary" type="button" disabled={busy} onClick={onBatch}>Пакетная загрузка</button>
+        </div>
       </div>
       {matches.length ? <ul className="candidate-grid">
         {matches.map(candidate => (
@@ -42,18 +44,15 @@ export function CandidateDirectory({ candidates, busy, onAdd, onOpen, onAttach }
               <div><strong>{candidate.interviewCount ? `${candidate.interviewCount} интервью` : 'Без интервью'}</strong>
                 {candidate.latestAt && <small className="muted">{formatDate(candidate.latestAt)}</small>}</div>
               <div className="interview-card-actions">
-                <button className="secondary" type="button" disabled={busy} aria-label={`Открыть досье: ${candidate.name}`}
-                  onClick={() => onOpen(candidate.id)}>Досье</button>
-                <button type="button" disabled={busy} aria-label={`Прикрепить интервью: ${candidate.name}`}
-                  onClick={() => onAttach(candidate.id)}>Прикрепить WAV</button>
+                <button className="secondary" type="button" disabled={busy} aria-label={`Открыть личное дело: ${candidate.name}`}
+                  onClick={() => onOpen(candidate.id)}>Личное дело</button>
               </div>
             </div>
           </li>
         ))}
       </ul> : <div className="panel archive-empty">
-        <h3>{candidates.length ? 'Кандидаты не найдены' : 'Кандидатов пока нет'}</h3>
-        {candidates.length ? <button className="secondary" type="button" onClick={() => setQuery('')}>Сбросить поиск</button>
-          : <button type="button" disabled={busy} onClick={onAdd}>Создать карточку</button>}
+        <h3>Кандидаты не найдены</h3>
+        <button className="secondary" type="button" onClick={() => setQuery('')}>Сбросить поиск</button>
       </div>}
     </section>
   )
