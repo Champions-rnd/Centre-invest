@@ -1,7 +1,9 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { candidateProfileSchema, type CandidateProfile } from '../../../shared/archive'
 import { MAX_AUDIO_MB } from '../../../shared/contracts'
-import { isSupportedWav } from '../intake/wav'
+import { createUploadId } from '../intake/uploadId'
+import { FilePicker } from '../intake/FilePicker'
+import { isSupportedWav, wavAccept } from '../intake/wav'
 import { MAX_CANDIDATE_TEXT_BYTES, parseCandidateText } from './candidateText'
 
 export function readCandidateProfile(fields: FormData, prefix = '') {
@@ -49,7 +51,6 @@ export function CandidateProfileForm({ busy, onSave }: {
   onSave: (id: string, profile: CandidateProfile, recording?: CandidateRecording) => void
 }) {
   const id = useRef<string | undefined>(undefined)
-  const wavInput = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [specialty, setSpecialty] = useState('')
   const [notes, setNotes] = useState('')
@@ -86,7 +87,7 @@ export function CandidateProfileForm({ busy, onSave }: {
       setError('Укажите ФИО и специальность кандидата.')
       return
     }
-    id.current ??= crypto.randomUUID()
+    id.current ??= createUploadId()
     setError('')
     onSave(id.current, parsed.data, recording)
   }
@@ -97,34 +98,20 @@ export function CandidateProfileForm({ busy, onSave }: {
       <form onSubmit={submit}>
         <fieldset disabled={busy || reading}>
           <div className="candidate-attachments">
-            <div className="candidate-file-import">
-              <label htmlFor="candidate-text">Импорт из TXT</label>
-              <p className="muted" id="candidate-text-help">
-                «Специальность: …» и «Описание: …» или специальность в первой строке, описание ниже.
-              </p>
-              <input id="candidate-text" type="file" accept=".txt,text/plain" aria-describedby="candidate-text-help"
-                onChange={event => {
-                  const file = event.currentTarget.files?.[0]
-                  event.currentTarget.value = ''
-                  if (file) void importText(file)
-                }} />
+            <FilePicker id="candidate-text" label="Импорт из TXT" accept=".txt,text/plain" disabled={busy || reading}
+              help="Укажите «Специальность: …» и «Описание: …» или напишите специальность в первой строке. Можно перетащить TXT сюда."
+              onFiles={([file]) => void importText(file)}>
               {importMessage && <p role="status">{importMessage}</p>}
-            </div>
-            <div className="candidate-file-import">
-              <label htmlFor="candidate-wav">Интервью из WAV</label>
-              <p className="muted" id="candidate-wav-help">До {MAX_AUDIO_MB} МБ. Расшифруем при сохранении.</p>
-              <input id="candidate-wav" ref={wavInput} type="file" accept=".wav,audio/wav,audio/x-wav"
-                aria-describedby={wavError ? 'candidate-wav-help candidate-wav-error' : 'candidate-wav-help'}
-                aria-invalid={Boolean(wavError)} onChange={event => {
-                  const file = event.currentTarget.files?.[0]
-                  setRecording(file && { file, uploadId: crypto.randomUUID() })
-                }} />
-              {wavError && <p id="candidate-wav-error" role="alert">{wavError}</p>}
-              {recording && <button className="secondary upload-remove" type="button" onClick={() => {
-                if (wavInput.current) wavInput.current.value = ''
-                setRecording(undefined)
-              }}>Убрать WAV</button>}
-            </div>
+            </FilePicker>
+            <FilePicker id="candidate-wav" label="Интервью из WAV" accept={wavAccept} disabled={busy || reading}
+              help={`До ${MAX_AUDIO_MB} МБ. Можно перетащить WAV сюда. Расшифруем при сохранении.`}
+              onFiles={([file]) => setRecording({ file, uploadId: createUploadId() })}>
+              {wavError && <p role="alert">{wavError}</p>}
+              {recording && <>
+                <p className="selected-file-name" role="status">{recording.file.name}</p>
+                <button className="secondary upload-remove" type="button" onClick={() => setRecording(undefined)}>Убрать WAV</button>
+              </>}
+            </FilePicker>
           </div>
           <div className="vacancy-grid"><CandidateProfileFields imported={{ specialty, notes, setSpecialty, setNotes }} /></div>
           <button type="submit" disabled={Boolean(wavError)}>

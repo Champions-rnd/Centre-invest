@@ -6,6 +6,7 @@ import {
   archiveDownload, createCandidate, loadCandidate, loadCandidates, loadArchiveInterviews, loadInterview,
   saveCandidateStatus, saveInterviewTranscript, submitInterview,
 } from './api'
+import { ArchiveTables } from './archive/ArchiveTables'
 import { CandidateDossier } from './archive/CandidateDossier'
 import { CandidateDirectory } from './archive/CandidateDirectory'
 import { CandidateProfileForm, type CandidateRecording } from './archive/CandidateProfileForm'
@@ -18,6 +19,7 @@ import './workspace.css'
 type Screen =
   | { view: 'candidates' }
   | { view: 'dashboard' }
+  | { view: 'tables' }
   | { view: 'new-candidate' }
   | { view: 'upload'; attachTo?: string }
   | { view: 'dossier'; candidate: CandidateDetail; interview?: SavedInterview; seek?: { ms: number } }
@@ -35,6 +37,7 @@ function App() {
   const [error, setError] = useState('')
   const busy = Boolean(pending)
   const heading = screen.view === 'candidates' ? 'candidate-directory-title' : screen.view === 'dashboard' ? 'archive-title' : screen.view === 'upload' ? 'intake-title'
+    : screen.view === 'tables' ? 'archive-tables-title'
     : screen.view === 'new-candidate' ? 'candidate-create-title'
     : screen.interview ? 'report-title' : 'dossier-title'
 
@@ -160,6 +163,8 @@ function App() {
           <button type="button" disabled={busy} onClick={goHome} aria-current={screen.view === 'candidates' ? 'page' : undefined}>Кандидаты</button>
           <button type="button" disabled={busy} onClick={() => navigate({ view: 'dashboard' })}
             aria-current={screen.view === 'dashboard' ? 'page' : undefined}>Интервью</button>
+          <button type="button" disabled={busy} onClick={() => navigate({ view: 'tables' })}
+            aria-current={screen.view === 'tables' ? 'page' : undefined}>Таблицы</button>
         </nav>
         <a className="studio-link" href="https://www.centrinvest.ru/">Сайт банка «Центр-инвест»</a>
       </aside>
@@ -168,17 +173,17 @@ function App() {
           <div className="studio-context">
             {(screen.view === 'new-candidate' || screen.view === 'dossier') &&
               <button className="secondary" type="button" disabled={busy} onClick={goHome}>← К списку кандидатов</button>}
-            {(screen.view === 'candidates' || screen.view === 'dashboard' || screen.view === 'upload') &&
+            {(screen.view === 'candidates' || screen.view === 'dashboard' || screen.view === 'tables' || screen.view === 'upload') &&
               <span>Подбор персонала</span>}
           </div>
-          {(screen.view === 'candidates' || screen.view === 'dashboard') &&
+          {(screen.view === 'candidates' || screen.view === 'dashboard' || screen.view === 'tables') &&
             <a className="action-link" href={archiveDownload()} download>Экспорт Excel</a>}
         </header>
         <main className="frame">
           {pending && <p className="panel archive-feedback" role="status">{pending}</p>}
           {error && <div className="panel archive-feedback">
             <p role="alert">{error}</p>
-            {(screen.view === 'dashboard' || screen.view === 'candidates') && (!archive || !candidates) &&
+            {(screen.view === 'dashboard' || screen.view === 'candidates' || screen.view === 'tables') && (!archive || !candidates) &&
               <button type="button" className="secondary" onClick={refresh}>Обновить архив</button>}
           </div>}
           <div hidden={screen.view !== 'candidates'}>{candidates
@@ -187,6 +192,9 @@ function App() {
           <div hidden={screen.view !== 'dashboard'}>{archive
             ? <Dashboard interviews={archive} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'new-candidate' })} />
             : !error && <p className="archive-feedback" role="status">Загружаем архив…</p>}</div>
+          {screen.view === 'tables' && (candidates && archive
+            ? <ArchiveTables candidates={candidates} interviews={archive} />
+            : !error && <p role="status">Загружаем таблицы…</p>)}
           <div className="upload-screen" hidden={screen.view !== 'upload'}>
             <InterviewForm candidates={candidates ?? []} candidateId={uploadCandidateId}
               attachTo={screen.view === 'upload' ? screen.attachTo : undefined} onCandidate={setUploadCandidateId}

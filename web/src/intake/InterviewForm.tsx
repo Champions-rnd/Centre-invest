@@ -3,7 +3,9 @@ import { candidateTargetSchema, type Candidate, type CandidateTarget, type Saved
 import { MAX_AUDIO_MB, vacancySchema, type Vacancy } from '../../../shared/contracts'
 import { submitInterview } from '../api'
 import { CandidateProfileFields, readCandidateProfile } from '../archive/CandidateProfileForm'
-import { isSupportedWav } from './wav'
+import { FilePicker } from './FilePicker'
+import { createUploadId } from './uploadId'
+import { isSupportedWav, wavAccept } from './wav'
 import './styles.css'
 
 type Selection = { id: string; file: File }
@@ -61,7 +63,7 @@ function readTarget(fields: FormData, prefix: string): CandidateTarget | undefin
   const candidateId = fields.get(prefix + 'candidate')
   const profile = candidateId ? undefined : readCandidateProfile(fields, prefix)
   const parsed = candidateTargetSchema.safeParse(candidateId ? { candidateId }
-    : { newCandidateId: crypto.randomUUID(), profile: profile?.data })
+    : { newCandidateId: createUploadId(), profile: profile?.data })
   return parsed.success ? parsed.data : undefined
 }
 
@@ -71,7 +73,6 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
   const [separate, setSeparate] = useState(false)
   const [active, setActive] = useState(false)
   const running = useRef(false)
-  const [dragging, setDragging] = useState(false)
   const [error, setError] = useState('')
   const savedCount = jobs.filter(job => job.state === 'saved').length
   const failures = jobs.filter(job => job.state === 'failed')
@@ -81,7 +82,7 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
   function selectFiles(incoming: File[]) {
     if (running.current) return
     const valid = incoming.filter(isSupportedWav)
-    const added = valid.map(file => ({ id: crypto.randomUUID(), file }))
+    const added = valid.map(file => ({ id: createUploadId(), file }))
     setFiles(current => [...current, ...added])
     const rejected = incoming.length - valid.length
     setError(rejected ? `Пропущено файлов: ${rejected}. Поддерживаются WAV до ${MAX_AUDIO_MB} МБ.` : '')
@@ -160,23 +161,8 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
       </div>
       <form onSubmit={handleSubmit}>
         <fieldset disabled={active}>
-          <label className={dragging ? 'drop dragging' : 'drop'}
-            onDragOver={event => { event.preventDefault(); if (!active) setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={event => {
-              event.preventDefault()
-              setDragging(false)
-              if (!active) selectFiles(Array.from(event.dataTransfer.files))
-            }}>
-            <input type="file" multiple accept=".wav,audio/wav,audio/x-wav" aria-label="Выбрать WAV"
-              onChange={event => {
-                selectFiles(Array.from(event.currentTarget.files ?? []))
-                event.currentTarget.value = ''
-              }} />
-            <span className="upload-icon" aria-hidden="true">↑</span>
-            <strong>Выберите или перетащите WAV</strong>
-            <span className="muted">До {MAX_AUDIO_MB} МБ на файл</span>
-          </label>
+          <FilePicker id="interview-wav" label="Интервью из WAV" accept={wavAccept} multiple disabled={active}
+            help={`До ${MAX_AUDIO_MB} МБ на файл. Можно перетащить WAV сюда.`} onFiles={selectFiles} />
           {files.length > 0 && <>
             {!attachTo && files.length > 1 && <label className="upload-mode">
               <input type="checkbox" checked={separateTargets} onChange={event => setSeparate(event.target.checked)} />

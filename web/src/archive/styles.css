@@ -155,3 +155,7 @@
 .candidate-file-import input[type="file"] { max-width: 100%; background: #fff; }
 .candidate-file-import > button { justify-self: start; }
 @media (max-width: 590px) { .candidate-attachments { grid-template-columns: 1fr; } }
+
+.candidate-file-import.dragging { border-color: var(--green); background: #e8f3e9; }
+.candidate-file-import .selected-file-name { overflow-wrap: anywhere; }
+.home-upload .candidate-file-import input[type="file"] { width: 100%; }

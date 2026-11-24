@@ -5,6 +5,8 @@ import {
 } from '../../shared/archive'
 import { coachingResultSchema, roleReviewSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
 
+import { validateWav } from './intake/wav'
+
 async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(path, init)
   const result = await response.json().catch(() => null)
@@ -25,10 +27,11 @@ function jsonRequest(method: 'PATCH' | 'POST', input: unknown, signal?: AbortSig
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal }
 }
 
-export function submitInterview(
+export async function submitInterview(
   audio: File, vacancy: Vacancy | null, candidate: CandidateTarget,
   uploadId: string, onUpload: (percent: number | null) => void,
 ) {
+  await validateWav(audio)
   const body = new FormData()
   body.append('audio', audio)
   body.append('candidate', JSON.stringify(candidate))
@@ -80,8 +83,8 @@ export function saveCandidateStatus(id: string, status: CandidateStatus) {
   return typedRequest(candidateDetailSchema, `/api/candidates/${id}/status`, jsonRequest('PATCH', { status }))
 }
 
-export function loadInterview(id: string) {
-  return typedRequest(savedInterviewSchema, `/api/interviews/${id}`)
+export function loadInterview(id: string, signal?: AbortSignal) {
+  return typedRequest(savedInterviewSchema, `/api/interviews/${id}`, { signal })
 }
 
 export function saveInterviewTranscript(interview: SavedInterview, transcript: Segment[]) {

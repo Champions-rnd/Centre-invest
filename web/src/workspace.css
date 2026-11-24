@@ -173,7 +173,7 @@
   .studio { display: block; }
   .studio-sidebar { position: static; min-height: 0; padding: 8px 12px; }
   .studio-brand, .studio-brand:hover:enabled { flex-direction: row; align-items: center; gap: 12px; }
-  .studio-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 7px; }
+  .studio-navigation { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 7px; }
   .studio-navigation button { text-align: center; }
   .studio-link { display: none; }
   .roster-table th, .roster-table td { padding-inline: 7px; }
@@ -193,3 +193,19 @@
 .playback-rate { display: flex; align-items: center; gap: 7px; font-size: .83rem; color: var(--muted); }
 .playback-rate select { padding-block: 5px; }
 .copy-questions { margin-top: 10px; min-height: 34px; font-size: .82rem; }
+
+.archive-tables { display: grid; gap: 12px; }
+.archive-table-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.archive-table-controls [aria-pressed="true"] { background: #e4f1e6; color: var(--green-dark); border-color: #9cbfa8; }
+.archive-table-scroll { overflow: auto; max-height: 65vh; border: 1px solid var(--line); border-radius: 8px; }
+.archive-table-scroll table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: .86rem; }
+.archive-table-scroll th, .archive-table-scroll td { padding: 8px 11px; vertical-align: top; }
+.archive-table-scroll th { position: sticky; top: 0; color: var(--green-dark); background: #edf5ee; white-space: nowrap; }
+.archive-table-scroll tbody tr:nth-child(even) { background: #f5f9f6; }
+.archive-table-scroll td { border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.archive-tables code { font-size: .8em; }
+.archive-table-scroll code { white-space: nowrap; }
+.archive-transcript-text { min-width: 14rem; width: 100%; white-space: pre-wrap; }
+.archive-interview-select { max-width: 34rem; }
+.archive-interview-select select { width: 100%; }
+.archive-tables > p { overflow-wrap: anywhere; }
