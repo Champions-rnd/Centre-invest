@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import { candidateTargetSchema, type Candidate, type CandidateTarget, type SavedInterview } from '../../../shared/archive'
 import { MAX_AUDIO_MB, vacancySchema, type Vacancy } from '../../../shared/contracts'
 import { submitInterview } from '../api'
+import { CandidateProfileFields, readCandidateProfile } from '../archive/CandidateProfileForm'
 import './styles.css'
 
 type Selection = { id: string; file: File }
@@ -17,6 +18,7 @@ type Job = Selection & {
 type Props = {
   candidates: Candidate[]
   candidateId: string
+  attachTo?: string
   onCandidate: (id: string) => void
   onSaved: (interview: SavedInterview) => Promise<void>
   onOpen: (candidateId: string, interviewId: string) => void
@@ -49,38 +51,20 @@ function CandidateFields({ candidates, prefix, value, onChange }: {
           ))}
         </select>
       </label>
-      {!selected && <>
-        <label>ФИО <input name={prefix + 'name'} maxLength={180} required /></label>
-        <label>Специальность <input name={prefix + 'specialty'} maxLength={120} required /></label>
-        <details className="profile-notes upload-extra">
-          <summary>Опыт, зарплата и заметка</summary>
-          <div className="vacancy-grid">
-            <label>Опыт <input name={prefix + 'experience'} maxLength={80} /></label>
-            <label>Зарплатные ожидания <input name={prefix + 'salary'} maxLength={80} /></label>
-            <label className="profile-notes">Заметка <textarea name={prefix + 'notes'} maxLength={1500} rows={2} /></label>
-          </div>
-        </details>
-      </>}
+      {!selected && <CandidateProfileFields prefix={prefix} />}
     </div>
   )
 }
 
 function readTarget(fields: FormData, prefix: string): CandidateTarget | undefined {
   const candidateId = fields.get(prefix + 'candidate')
-  const parsed = candidateTargetSchema.safeParse(candidateId ? { candidateId } : {
-    newCandidateId: crypto.randomUUID(),
-    profile: {
-      name: fields.get(prefix + 'name'),
-      specialty: fields.get(prefix + 'specialty'),
-      experience: fields.get(prefix + 'experience'),
-      salary: fields.get(prefix + 'salary'),
-      notes: fields.get(prefix + 'notes'),
-    },
-  })
+  const profile = candidateId ? undefined : readCandidateProfile(fields, prefix)
+  const parsed = candidateTargetSchema.safeParse(candidateId ? { candidateId }
+    : { newCandidateId: crypto.randomUUID(), profile: profile?.data })
   return parsed.success ? parsed.data : undefined
 }
 
-export function InterviewForm({ candidates, candidateId, onCandidate, onSaved, onOpen }: Props) {
+export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, onSaved, onOpen }: Props) {
   const [files, setFiles] = useState<Selection[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [separate, setSeparate] = useState(false)
@@ -90,7 +74,8 @@ export function InterviewForm({ candidates, candidateId, onCandidate, onSaved, o
   const [error, setError] = useState('')
   const savedCount = jobs.filter(job => job.state === 'saved').length
   const failures = jobs.filter(job => job.state === 'failed')
-  const separateTargets = separate && files.length > 1
+  const separateTargets = !attachTo && separate && files.length > 1
+  const selectedCandidate = candidates.find(candidate => candidate.id === (attachTo || candidateId))
 
   function selectFiles(incoming: File[]) {
     if (running.current) return
@@ -141,7 +126,7 @@ export function InterviewForm({ candidates, candidateId, onCandidate, onSaved, o
       setError('Укажите до 20 тем по одному пункту на строку. Максимум 300 символов на тему.')
       return
     }
-    const common = separateTargets ? undefined : readTarget(fields, 'batch-')
+    const common = attachTo ? { candidateId: attachTo } : separateTargets ? undefined : readTarget(fields, 'batch-')
     const queue: Job[] = []
     for (const selection of files) {
       const target = separateTargets ? readTarget(fields, selection.id + '-') : common
@@ -169,6 +154,7 @@ export function InterviewForm({ candidates, candidateId, onCandidate, onSaved, o
     <section className="panel home-upload" aria-labelledby="intake-title">
       <div className="section-head">
         <h2 id="intake-title" tabIndex={-1}>Загрузка интервью</h2>
+        {selectedCandidate && <p><strong>{selectedCandidate.name}</strong> · {selectedCandidate.specialty}</p>}
         <p className="muted">Выберите один или несколько WAV. Расшифровки сохранятся в досье кандидатов.</p>
       </div>
       <form onSubmit={handleSubmit}>
@@ -191,7 +177,7 @@ export function InterviewForm({ candidates, candidateId, onCandidate, onSaved, o
             <span className="muted">До {MAX_AUDIO_MB} МБ и 60 минут на файл</span>
           </label>
           {files.length > 0 && <>
-            {files.length > 1 && <label className="upload-mode">
+            {!attachTo && files.length > 1 && <label className="upload-mode">
               <input type="checkbox" checked={separateTargets} onChange={event => setSeparate(event.target.checked)} />
               Выбрать кандидата отдельно для каждого файла
             </label>}
@@ -207,7 +193,7 @@ export function InterviewForm({ candidates, candidateId, onCandidate, onSaved, o
                 </li>
               ))}
             </ul>
-            {!separateTargets && <CandidateFields candidates={candidates} prefix="batch-" value={candidateId} onChange={onCandidate} />}
+            {!attachTo && !separateTargets && <CandidateFields candidates={candidates} prefix="batch-" value={candidateId} onChange={onCandidate} />}
             <details className="upload-extra">
               <summary>Общий контекст вакансии <span className="muted">Необязательно</span></summary>
               <div className="vacancy-grid">

@@ -20,6 +20,7 @@ export const candidateTargetSchema = z.union([
   z.object({ candidateId: z.uuid() }),
   z.object({ profile: candidateProfileSchema, newCandidateId: z.uuid().optional() }),
 ])
+export const candidateCreateSchema = z.object({ id: z.uuid(), profile: candidateProfileSchema })
 
 export const candidateSchema = candidateProfileSchema.extend({
   id: z.uuid(),
@@ -45,6 +46,7 @@ export type Candidate = z.infer<typeof candidateSchema>
 export type CandidateDetail = z.infer<typeof candidateDetailSchema>
 export type CandidateStatus = z.infer<typeof candidateStatusSchema>
 export type CandidateTarget = z.infer<typeof candidateTargetSchema>
+export type CandidateProfile = z.infer<typeof candidateProfileSchema>
 export type SavedInterview = z.infer<typeof savedInterviewSchema>
 export type InterviewSummary = z.infer<typeof interviewSummarySchema>
 export type ArchiveInterview = z.infer<typeof archiveInterviewSchema>

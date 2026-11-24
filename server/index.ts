@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import express, { type ErrorRequestHandler } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
-import { candidateStatusSchema, candidateTargetSchema, transcriptUpdateSchema } from '../shared/archive'
+import { candidateCreateSchema, candidateStatusSchema, candidateTargetSchema, transcriptUpdateSchema } from '../shared/archive'
 import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_MB, vacancySchema } from '../shared/contracts'
 import { coachInterview } from './analysis/coach'
 import { reviewRoles } from './analysis/review-roles'
@@ -32,6 +32,11 @@ function parseId(value: unknown) {
 app.get('/api/health', (_request, response) => response.json({ status: 'ok' }))
 
 app.get('/api/candidates', (_request, response) => response.json(archive.listCandidates()))
+app.post('/api/candidates', json, (request, response) => {
+  const input = candidateCreateSchema.safeParse(request.body)
+  if (!input.success) throw new ApiError(400, 'INVALID_CANDIDATE', 'Проверьте имя и специальность кандидата.')
+  response.status(201).json(archive.createCandidate(input.data.id, input.data.profile))
+})
 app.get('/api/interviews', (_request, response) => response.json(archive.listInterviews()))
 app.get('/api/candidates/:id', (request, response) => response.json(archive.candidate(parseId(request.params.id))))
 app.patch('/api/candidates/:id/status', json, (request, response) => {

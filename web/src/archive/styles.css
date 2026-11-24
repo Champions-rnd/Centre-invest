@@ -124,3 +124,17 @@
   .archive-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .archive-toolbar .filter-search { grid-column: 1 / -1; }
 }
+
+.candidate-create { margin-top: 24px; max-width: 720px; }
+.candidate-create fieldset > button { margin-top: 14px; }
+.candidate-create input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #b2c9ba;
+  border-radius: 8px;
+  background: #fbfdfb;
+  color: inherit;
+  padding: 8px 10px;
+  font-weight: 400;
+}
+.directory-search { min-width: min(280px, 100%); }

@@ -35,16 +35,16 @@ export function CandidateDossier({ candidate, interview, busy, onAdd, onIntervie
               {Object.entries(candidateStatuses).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
-          <a className="action-link" href={archiveDownload(candidate.id)} download>Excel кандидата</a>
-          <button type="button" disabled={busy} onClick={onAdd}>Добавить WAV</button>
+          {candidate.interviews.length > 0 && <a className="action-link" href={archiveDownload(candidate.id)} download>Excel кандидата</a>}
+          <button type="button" disabled={busy} onClick={onAdd}>Прикрепить интервью</button>
         </div>
       </section>
       <section className="panel interview-history" aria-labelledby="history-title">
         <div className="history-heading">
           <h2 id="history-title">История интервью</h2>
-          <InterviewSort value={sort} onChange={setSort} />
+          {candidate.interviews.length > 1 && <InterviewSort value={sort} onChange={setSort} />}
         </div>
-        <ul>
+        {candidate.interviews.length ? <ul>
           {sortInterviews(candidate.interviews, sort).map(item => (
             <li key={item.id}>
               <button type="button" className="secondary" disabled={busy} aria-pressed={interview?.id === item.id}
@@ -54,7 +54,7 @@ export function CandidateDossier({ candidate, interview, busy, onAdd, onIntervie
               </button>
             </li>
           ))}
-        </ul>
+        </ul> : <p className="muted">К этому кандидату пока не прикреплено ни одного интервью.</p>}
       </section>
       {interview && <ReportView key={interview.id} interviewId={interview.id} result={interview.result} audioUrl={recordingUrl(interview.id)}
         audioName={interview.fileName} onSave={transcript => onTranscript(interview, transcript)} />}

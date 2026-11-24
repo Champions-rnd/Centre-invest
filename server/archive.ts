@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import type { ArchiveInterview, Candidate, CandidateDetail, CandidateStatus, CandidateTarget, InterviewSummary, SavedInterview } from '../shared/archive'
+import type { ArchiveInterview, Candidate, CandidateDetail, CandidateProfile, CandidateStatus, CandidateTarget, InterviewSummary, SavedInterview } from '../shared/archive'
 import { resultSchema, type InterviewResult } from '../shared/contracts'
 import { ApiError } from './errors'
 
@@ -81,6 +81,11 @@ export function openArchive() {
     if (row) return decodeInterview(row)
   }
 
+  function insertCandidate(id: string, { name, specialty, experience, salary, notes }: CandidateProfile) {
+    db.prepare(`INSERT INTO candidates (id, name, specialty, experience, salary, notes)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(id, name, specialty, experience, salary, notes)
+  }
+
   function saveInterview(target: CandidateTarget, file: Express.Multer.File, result: InterviewResult, id: string = randomUUID()): SavedInterview {
     const candidateId = 'candidateId' in target ? target.candidateId : target.newCandidateId ?? randomUUID()
     const now = new Date().toISOString()
@@ -93,9 +98,7 @@ export function openArchive() {
         return saved
       }
       if ('profile' in target) {
-        const { name, specialty, experience, salary, notes } = target.profile
-        db.prepare(`INSERT INTO candidates (id, name, specialty, experience, salary, notes)
-          VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(candidateId, name, specialty, experience, salary, notes)
+        insertCandidate(candidateId, target.profile)
       } else {
         candidate(candidateId)
       }
@@ -113,6 +116,10 @@ export function openArchive() {
 
   return {
     listCandidates,
+    createCandidate(id: string, profile: CandidateProfile) {
+      insertCandidate(id, profile)
+      return candidate(id)
+    },
     listInterviews(): ArchiveInterview[] {
       const candidates = new Map(listCandidates().map(profile => [profile.id, profile]))
       const rows = db.prepare(`SELECT ${interviewColumns}, candidate_id AS candidateId FROM interviews
