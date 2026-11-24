@@ -138,3 +138,15 @@
   font-weight: 400;
 }
 .directory-search { min-width: min(280px, 100%); }
+.candidate-text-import {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f5faf6;
+}
+.candidate-text-import > label { font-weight: 650; }
+.candidate-text-import > p { font-size: .86rem; }
+.candidate-text-import input[type="file"] { max-width: 100%; background: #fff; }
