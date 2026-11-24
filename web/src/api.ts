@@ -3,7 +3,7 @@ import {
   candidateDetailSchema, candidateSchema, savedInterviewSchema,
   type CandidateStatus, type CandidateTarget, type SavedInterview,
 } from '../../shared/archive'
-import { coachingResultSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
+import { coachingResultSchema, roleReviewSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
 
 async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(path, init)
@@ -75,6 +75,10 @@ export function loadInterview(id: string) {
 export function saveInterviewTranscript(interview: SavedInterview, transcript: Segment[]) {
   return typedRequest(savedInterviewSchema, `/api/interviews/${interview.id}/transcript`,
     jsonRequest('PATCH', { transcript, updatedAt: interview.updatedAt }))
+}
+
+export function reviewInterviewRoles(id: string, signal: AbortSignal) {
+  return typedRequest(roleReviewSchema, `/api/interviews/${id}/review-roles`, { method: 'POST', signal })
 }
 
 export function recordingUrl(id: string) {

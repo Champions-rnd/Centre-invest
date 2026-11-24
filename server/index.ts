@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { candidateStatusSchema, candidateTargetSchema, transcriptUpdateSchema } from '../shared/archive'
 import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_MB, vacancySchema } from '../shared/contracts'
 import { coachInterview } from './analysis/coach'
+import { reviewRoles } from './analysis/review-roles'
 import { openArchive } from './archive'
 import { ApiError } from './errors'
 import { exportArchive } from './export'
@@ -64,6 +65,14 @@ app.get('/api/interviews/:id/audio', (request, response) => {
   response.send(archive.recordingBytes(id, 0, size))
 })
 
+app.post('/api/interviews/:id/review-roles', async (request, response) => {
+  const stored = archive.interview(parseId(request.params.id))
+  const controller = new AbortController()
+  response.once('close', () => { if (!response.writableEnded) controller.abort() })
+  const reviewed = await reviewRoles(stored.result.transcript, controller.signal)
+  if (!controller.signal.aborted) response.json(reviewed)
+})
+
 app.patch('/api/interviews/:id/transcript', json, async (request, response) => {
   const input = transcriptUpdateSchema.safeParse(request.body)
   if (!input.success) throw new ApiError(400, 'INVALID_TRANSCRIPT', 'Проверьте исправленную расшифровку.')
@@ -78,8 +87,12 @@ app.patch('/api/interviews/:id/transcript', json, async (request, response) => {
   })) throw new ApiError(400, 'INVALID_TIMECODES', 'При редактировании сохраните исходные таймкоды и порядок реплик.')
 
   const { vacancy } = stored.result
-  const result = vacancy ? await buildReport({ vacancy, transcript: input.data.transcript })
-    : { ...stored.result, transcript: input.data.transcript }
+  const reviewed = input.data.transcript.map((segment, index) => ({
+    ...segment,
+    roleReviewed: transcript[index].roleReviewed || segment.roleReviewed || segment.speaker !== transcript[index].speaker,
+  }))
+  const result = vacancy ? await buildReport({ vacancy, transcript: reviewed })
+    : { ...stored.result, transcript: reviewed }
   response.json(archive.saveTranscript(stored.id, stored.updatedAt, result))
 })
 

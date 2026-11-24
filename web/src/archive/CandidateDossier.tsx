@@ -11,7 +11,7 @@ type Props = {
   onAdd: () => void
   onInterview: (id: string) => void
   onStatus: (status: CandidateStatus) => void
-  onTranscript: (interview: SavedInterview, transcript: Segment[]) => Promise<void>
+  onTranscript: (interview: SavedInterview, transcript: Segment[]) => Promise<Segment[]>
 }
 
 export function CandidateDossier({ candidate, interview, busy, onAdd, onInterview, onStatus, onTranscript }: Props) {
@@ -50,7 +50,7 @@ export function CandidateDossier({ candidate, interview, busy, onAdd, onIntervie
           ))}
         </ul>
       </section>
-      {interview && <ReportView key={interview.id} result={interview.result} audioUrl={recordingUrl(interview.id)}
+      {interview && <ReportView key={interview.id} interviewId={interview.id} result={interview.result} audioUrl={recordingUrl(interview.id)}
         audioName={interview.fileName} onSave={transcript => onTranscript(interview, transcript)} />}
     </>
   )

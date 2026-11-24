@@ -1,4 +1,5 @@
 import type { CoachingRequest, Recommendation, Segment } from '../../shared/contracts'
+import { groupDialogue } from '../../shared/dialogue'
 import { words } from './index'
 
 const themes = [
@@ -21,9 +22,11 @@ const themes = [
 
 function proposedQuestions(transcript: Segment[]) {
   const recommendations: Recommendation[] = []
-  for (const [index, segment] of transcript.entries()) {
+  const turns = groupDialogue(transcript)
+  for (const [index, turn] of turns.entries()) {
+    const segment = turn[0]
     if (segment.speaker !== 'hr') continue
-    const question = segment.text
+    const question = turn.map(part => part.text).join(' ')
     if (/расскаж(?:и|ите) о себе|что-нибудь|как вообще|вы ведь|tell me about yourself|you (?:surely|obviously)/iu.test(question)
         || (question.match(/\?/gu)?.length ?? 0) > 1) {
       const topic = question.split('?').slice(0, -1)
@@ -39,15 +42,17 @@ function proposedQuestions(transcript: Segment[]) {
       })
     }
 
-    const next = transcript[index + 1]
-    const continuation = transcript[index + 2]
-    if (next?.speaker !== 'candidate' || next.startMs - segment.endMs > 15_000) continue
-    const hasContinuation = continuation?.speaker === 'candidate' && continuation.startMs - next.endMs < 2500
-    if (!hasContinuation && next.text.split(/\s+/u).length < 13) {
+    const response = turns[index + 1]
+    const next = response?.[0]
+    if (next?.speaker !== 'candidate' || next.startMs - turn.at(-1)!.endMs > 15_000) continue
+    const answer = response.map(part => part.text).join(' ')
+    const continuation = turns[index + 2]?.[0]
+    const hasContinuation = continuation?.speaker === 'candidate' && continuation.startMs - response.at(-1)!.endMs < 2500
+    if (!hasContinuation && answer.split(/\s+/u).length < 13) {
       recommendations.push({
         kind: 'clarify',
         reason: 'Ответ короткий. Уточнение поможет получить конкретные действия, детали или результат.',
-        question: `Вы сказали «${next.text.slice(0, 150).replace(/[.!?]+$/u, '')}». Можете пояснить, что именно вы сделали и каким был результат?`,
+        question: `Вы сказали «${answer.slice(0, 150).replace(/[.!?]+$/u, '')}». Можете пояснить, что именно вы сделали и каким был результат?`,
         evidenceIds: [segment.id, next.id],
       })
     }

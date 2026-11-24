@@ -12,7 +12,8 @@ export function words(text: string) {
 }
 
 export function analyzeInterview({ vacancy, transcript }: AnalysisRequest): Finding[] {
-  const segments = transcript.map(segment => ({ id: segment.id, words: words(segment.text) }))
+  const segments = transcript.filter(segment => segment.speaker === 'candidate')
+    .map(segment => ({ id: segment.id, words: words(segment.text) }))
   return vacancyCriteria(vacancy).map(({ id, label }) => {
     const terms = [...words(label)]
     const evidenceIds = segments
@@ -26,7 +27,7 @@ export function analyzeInterview({ vacancy, transcript }: AnalysisRequest): Find
     return {
       criterionId: id,
       status: hasEvidence ? 'partial' : 'missing',
-      conclusion: hasEvidence ? 'Найдены фрагменты с ключевыми словами критерия.' : 'В расшифровке не найдено совпадений по ключевым словам критерия.',
+      conclusion: hasEvidence ? 'В репликах кандидата найдены ключевые слова критерия.' : 'В размеченных репликах кандидата не найдено ключевых слов критерия.',
       evidenceIds,
       gaps: [hasEvidence ? 'Проверьте контекст и уточните личный вклад кандидата.' : 'Уточните этот опыт на следующей встрече. В записи могли использоваться другие формулировки.'],
       nextQuestions: [`Приведите пример по критерию «${label}». Какова была ваша роль и каков был результат?`],

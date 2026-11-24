@@ -13,6 +13,7 @@ export const vacancySchema = z.object({
 export const segmentSchema = z.object({
   id: z.string().min(1),
   speaker: z.string(),
+  roleReviewed: z.boolean().optional(),
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
   text: z.string().trim().min(1),
@@ -41,6 +42,11 @@ export const analysisRequestSchema = z.object({
 })
 
 export const speakerRoleSchema = z.enum(['hr', 'candidate', ''])
+export const roleReviewSchema = z.object({
+  transcript: transcriptSchema,
+  source: z.enum(['model', 'rules']),
+  reviewedCount: z.number().int().nonnegative(),
+})
 export const coachingRequestSchema = analysisRequestSchema.extend({ vacancy: vacancySchema.nullable() })
 export const recommendationSchema = z.object({
   kind: z.enum(['unasked', 'rephrase', 'clarify']),

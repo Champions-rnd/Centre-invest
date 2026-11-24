@@ -114,6 +114,7 @@ function App() {
   async function updateTranscript(interview: SavedInterview, transcript: Segment[]) {
     const updated = await saveInterviewTranscript(interview, transcript)
     setScreen(current => current.view === 'dossier' && current.interview?.id === updated.id ? { ...current, interview: updated } : current)
+    return updated.result.transcript
   }
 
   return (
