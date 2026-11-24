@@ -123,17 +123,14 @@ function App() {
     <>
       <header className="site-header">
         <div className="frame header-inner">
-          <div className="archive-brand">
-            <button className="brand brand-button" type="button" disabled={busy}
-              onClick={goHome} aria-label="Центр-инвест, архив кандидатов">
-              <img src={`${import.meta.env.BASE_URL}brand/centrinvest-logo.svg`} alt="" width={140} height={30} />
-            </button>
-            <span>HR-аналитика</span>
-          </div>
+          <button className="brand brand-button" type="button" disabled={busy}
+            onClick={goHome} aria-label="Центр-инвест, архив кандидатов">
+            <img src={`${import.meta.env.BASE_URL}brand/centrinvest-logo.svg`} alt="" width={140} height={30} />
+          </button>
           <div className="header-actions">
             {screen.view !== 'dashboard' && <button className="secondary" disabled={busy} type="button"
               onClick={goHome}>На главную</button>}
-            <a className="action-link" href={archiveDownload()} download>Выгрузить Excel</a>
+            {screen.view !== 'upload' && <a className="action-link" href={archiveDownload()} download>Выгрузить Excel</a>}
             {screen.view !== 'upload' && <button disabled={busy} type="button" onClick={() => openUpload()}>+ Добавить кандидата</button>}
           </div>
         </div>

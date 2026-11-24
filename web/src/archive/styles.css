@@ -1,16 +1,9 @@
 .frame { width: min(1380px, calc(100% - 64px)); }
-.archive-brand, .header-actions, .dossier-actions {
+.header-actions, .dossier-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-}
-.archive-brand > span {
-  border-left: 1px solid var(--line);
-  padding-left: 12px;
-  font-size: .9rem;
-  font-weight: 700;
-  color: var(--green-dark);
 }
 .brand-button, .brand-button:hover:enabled { background: transparent; border: 0; padding: 0; }
 .action-link {

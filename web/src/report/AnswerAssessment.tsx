@@ -4,8 +4,8 @@ const topics: Record<AnswerObservation['aspect'], string> = {
   clarity: 'Ясность речи', relevance: 'Ответ по существу', detail: 'Конкретика', outcome: 'Результат',
 }
 const groups = [
-  { kind: 'strength', title: 'Что получилось' },
-  { kind: 'improvement', title: 'Что стоит уточнить' },
+  { kind: 'strength', title: 'Что получилось', sign: '+' },
+  { kind: 'improvement', title: 'Что стоит уточнить', sign: '−' },
 ] as const
 
 type Props = {
@@ -21,11 +21,11 @@ export function AnswerAssessment({ observations, segments, onJump, formatTime }:
       <h3 id="assessment-title">Плюсы и минусы ответов</h3>
       <p className="muted">Ясность формулировок и содержание по расшифровке интервью.</p>
       <div className="assessment-grid">
-        {groups.map(({ kind, title }) => {
+        {groups.map(({ kind, title, sign }) => {
           const items = observations.filter(item => item.kind === kind)
           return (
             <div className="assessment-group" data-kind={kind} key={kind}>
-              <h4>{title}</h4>
+              <h4><span className="assessment-sign" aria-hidden="true">{sign}</span>{title}</h4>
               {items.length === 0 ? <p className="muted">Недостаточно данных для вывода.</p> : (
                 <ul>{items.map(item => (
                   <li key={item.aspect}>
