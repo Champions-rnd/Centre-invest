@@ -19,7 +19,7 @@ const archive = openArchive()
 const json = express.json({ limit: '5mb' })
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_AUDIO_MB * 1024 * 1024, files: 1, fields: 2, fieldSize: 96 * 1024 },
+  limits: { fileSize: MAX_AUDIO_MB * 1024 * 1024, files: 1, fields: 3, fieldSize: 96 * 1024 },
 })
 
 function parseId(value: unknown) {
@@ -114,9 +114,15 @@ app.post('/api/interviews', upload.single('audio'), async (request, response) =>
   }
   const target = candidateTargetSchema.safeParse(rawCandidate)
   if (!target.success) throw new ApiError(400, 'INVALID_CANDIDATE', 'Укажите имя и специальность кандидата.')
+  const uploadId = request.body.uploadId === undefined ? undefined : parseId(request.body.uploadId)
+  const saved = uploadId ? archive.findInterview(uploadId) : undefined
+  if (saved) {
+    response.json(saved)
+    return
+  }
   if ('candidateId' in target.data) archive.candidate(target.data.candidateId)
   const result = await processInterview(audio, vacancy.data)
-  response.status(201).json(archive.saveInterview(target.data, audio, result))
+  response.status(201).json(archive.saveInterview(target.data, audio, result, uploadId))
 })
 
 app.post('/api/analyze', json, async (request, response) => {

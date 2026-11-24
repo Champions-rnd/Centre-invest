@@ -25,12 +25,35 @@ function jsonRequest(method: 'PATCH' | 'POST', input: unknown, signal?: AbortSig
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal }
 }
 
-export function submitInterview(audio: File, vacancy: Vacancy | null, candidate: CandidateTarget) {
+export function submitInterview(
+  audio: File, vacancy: Vacancy | null, candidate: CandidateTarget,
+  uploadId: string, onUpload: (percent: number | null) => void,
+) {
   const body = new FormData()
   body.append('audio', audio)
   body.append('candidate', JSON.stringify(candidate))
+  body.append('uploadId', uploadId)
   if (vacancy) body.append('vacancy', JSON.stringify(vacancy))
-  return typedRequest(savedInterviewSchema, '/api/interviews', { method: 'POST', body })
+  return new Promise<SavedInterview>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', '/api/interviews')
+    request.responseType = 'json'
+    request.upload.onprogress = event => {
+      if (event.lengthComputable && event.total) onUpload(Math.min(100, Math.floor(event.loaded * 100 / event.total)))
+    }
+    request.upload.onload = () => onUpload(null)
+    request.onload = () => {
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(request.response?.error?.message ?? `Ошибка запроса (${request.status}).`))
+        return
+      }
+      const saved = savedInterviewSchema.safeParse(request.response)
+      if (saved.success) resolve(saved.data)
+      else reject(new Error('Сервер вернул данные в неожиданном формате.'))
+    }
+    request.onerror = () => reject(new Error('Связь с сервером прервалась. Повторите загрузку.'))
+    request.send(body)
+  })
 }
 
 export function loadCandidates() {

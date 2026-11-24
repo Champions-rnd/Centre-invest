@@ -71,22 +71,31 @@ export function openArchive() {
   }
 
   function interview(id: string): SavedInterview {
-    const row = db.prepare(`SELECT ${storedColumns} FROM interviews WHERE id = ?`).get(id) as InterviewRow | undefined
-    if (!row) throw new ApiError(404, 'INTERVIEW_NOT_FOUND', 'Интервью не найдено.')
-    return decodeInterview(row)
+    const saved = findInterview(id)
+    if (!saved) throw new ApiError(404, 'INTERVIEW_NOT_FOUND', 'Интервью не найдено.')
+    return saved
   }
 
-  function saveInterview(target: CandidateTarget, file: Express.Multer.File, result: InterviewResult): SavedInterview {
-    const id = randomUUID()
-    const candidateId = 'candidateId' in target ? target.candidateId : randomUUID()
+  function findInterview(id: string): SavedInterview | undefined {
+    const row = db.prepare(`SELECT ${storedColumns} FROM interviews WHERE id = ?`).get(id) as InterviewRow | undefined
+    if (row) return decodeInterview(row)
+  }
+
+  function saveInterview(target: CandidateTarget, file: Express.Multer.File, result: InterviewResult, id: string = randomUUID()): SavedInterview {
+    const candidateId = 'candidateId' in target ? target.candidateId : target.newCandidateId ?? randomUUID()
     const now = new Date().toISOString()
     const fileName = recordingName(file.originalname)
     db.exec('BEGIN IMMEDIATE')
     try {
+      const saved = findInterview(id)
+      if (saved) {
+        db.exec('COMMIT')
+        return saved
+      }
       if ('profile' in target) {
         const { name, specialty, experience, salary, notes } = target.profile
         db.prepare(`INSERT INTO candidates (id, name, specialty, experience, salary, notes)
-          VALUES (?, ?, ?, ?, ?, ?)`).run(candidateId, name, specialty, experience, salary, notes)
+          VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(candidateId, name, specialty, experience, salary, notes)
       } else {
         candidate(candidateId)
       }
@@ -106,6 +115,7 @@ export function openArchive() {
     listCandidates,
     candidate,
     interview,
+    findInterview,
     saveInterview,
     updateStatus(id: string, status: CandidateStatus) {
       const updated = db.prepare('UPDATE candidates SET status = ? WHERE id = ?').run(status, id)

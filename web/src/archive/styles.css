@@ -1,5 +1,5 @@
 .frame { width: min(1380px, calc(100% - 64px)); }
-.archive-brand, .header-actions, .dossier-actions, .archive-back {
+.archive-brand, .header-actions, .dossier-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -26,7 +26,6 @@
   text-decoration: none;
 }
 .action-link:hover { background: var(--soft); }
-.archive-back { margin-top: 20px; }
 .archive-feedback { margin-top: 18px; }
 .archive-feedback > button { margin-top: 10px; }
 .archive-feedback > [role="alert"] { margin-top: 0; }
@@ -71,7 +70,7 @@
 .archive-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 280px); gap: 18px; align-items: start; }
 .candidate-list { min-width: 0; }
 .list-heading { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 12px; margin: 0 0 13px; }
-.list-heading h2, .archive-filters h2, .interview-history h2, .profile-fields h2 { font-size: 1.25rem; letter-spacing: -.02em; }
+.list-heading h2, .archive-filters h2, .interview-history h2 { font-size: 1.25rem; letter-spacing: -.02em; }
 .list-heading p, .sort-field, .filter-search { font-size: .86rem; color: var(--muted); }
 .sort-field, .filter-search { display: grid; gap: 4px; font-weight: 650; }
 .sort-field select { background: #fff; font-weight: 500; }
@@ -110,7 +109,7 @@
 
 .archive-filters { padding: 15px; }
 .filter-search { margin-top: 12px; }
-.filter-search input, .profile-fields input {
+.filter-search input {
   min-width: 0;
   width: 100%;
   border: 1px solid #b2c9ba;
@@ -159,7 +158,6 @@
 .interview-history li button[aria-pressed="true"] { background: #e9f4eb; border-color: #78aa8b; }
 .interview-history li strong { overflow-wrap: anywhere; }
 .interview-history li small { display: block; color: var(--muted); font-weight: 400; }
-.profile-fields { margin-bottom: 10px; }
 .profile-notes { grid-column: 1 / -1; }
 
 @media (max-width: 900px) {

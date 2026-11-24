@@ -18,7 +18,7 @@ export const candidateProfileSchema = z.object({
 
 export const candidateTargetSchema = z.union([
   z.object({ candidateId: z.uuid() }),
-  z.object({ profile: candidateProfileSchema }),
+  z.object({ profile: candidateProfileSchema, newCandidateId: z.uuid().optional() }),
 ])
 
 export const candidateSchema = candidateProfileSchema.extend({

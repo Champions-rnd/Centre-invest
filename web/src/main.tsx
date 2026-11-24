@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { Candidate, CandidateDetail, CandidateStatus, CandidateTarget, SavedInterview } from '../../shared/archive'
-import type { Segment, Vacancy } from '../../shared/contracts'
+import type { Candidate, CandidateDetail, CandidateStatus, SavedInterview } from '../../shared/archive'
+import type { Segment } from '../../shared/contracts'
 import {
   archiveDownload, loadCandidate, loadCandidates, loadInterview,
-  saveCandidateStatus, saveInterviewTranscript, submitInterview,
+  saveCandidateStatus, saveInterviewTranscript,
 } from './api'
 import { CandidateDossier } from './archive/CandidateDossier'
 import { Dashboard } from './archive/Dashboard'
@@ -14,7 +14,6 @@ import './archive/styles.css'
 
 type Screen =
   | { view: 'dashboard' }
-  | { view: 'intake'; candidate?: CandidateDetail }
   | { view: 'dossier'; candidate: CandidateDetail; interview?: SavedInterview }
 
 function message(error: unknown) {
@@ -24,11 +23,11 @@ function message(error: unknown) {
 function App() {
   const [screen, setScreen] = useState<Screen>({ view: 'dashboard' })
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
+  const [uploadCandidateId, setUploadCandidateId] = useState('')
   const [pending, setPending] = useState('')
   const [error, setError] = useState('')
   const busy = Boolean(pending)
-  const heading = screen.view === 'dashboard' ? 'archive-title' : screen.view === 'intake' ? 'intake-title'
-    : screen.interview ? 'report-title' : 'dossier-title'
+  const heading = screen.view === 'dashboard' ? 'archive-title' : screen.interview ? 'report-title' : 'dossier-title'
 
   function refresh() {
     setError('')
@@ -59,14 +58,24 @@ function App() {
     setScreen(next)
   }
 
+  function goHome() {
+    navigate({ view: 'dashboard' })
+    if (screen.view === 'dashboard') {
+      document.getElementById('archive-title')?.focus({ preventScroll: true })
+      window.scrollTo(0, 0)
+    }
+  }
+
   function rememberCandidate(candidate: Candidate) {
     setCandidates(current => [...(current ?? []).filter(item => item.id !== candidate.id), candidate]
       .sort((a, b) => (b.latestAt ?? '').localeCompare(a.latestAt ?? '')))
   }
 
-  function openCandidate(id: string) {
-    void run('Открываем досье…', async () => {
-      setScreen({ view: 'dossier', candidate: await loadCandidate(id) })
+  function openCandidate(id: string, interviewId?: string) {
+    if (busy) return
+    void run(interviewId ? 'Открываем интервью…' : 'Открываем досье…', async () => {
+      const [candidate, interview] = await Promise.all([loadCandidate(id), interviewId && loadInterview(interviewId)])
+      setScreen({ view: 'dossier', candidate, interview: interview || undefined })
     })
   }
 
@@ -78,19 +87,20 @@ function App() {
     })
   }
 
-  function upload(file: File, vacancy: Vacancy | null, target: CandidateTarget) {
-    void run('Распознаём WAV и сохраняем интервью. Длинные записи могут занять несколько минут.', async () => {
-      const interview = await submitInterview(file, vacancy, target)
-      setScreen({ view: 'dashboard' })
-      try {
-        const candidate = await loadCandidate(interview.candidateId)
-        rememberCandidate(candidate)
-        setScreen({ view: 'dossier', candidate, interview })
-      } catch {
-        refresh()
-        throw new Error('Интервью сохранено. Обновите архив, чтобы открыть досье.')
-      }
-    })
+  function openUpload(candidateId?: string) {
+    if (candidateId !== undefined) setUploadCandidateId(candidateId)
+    navigate({ view: 'dashboard' })
+    requestAnimationFrame(() => document.getElementById('intake-title')?.focus())
+  }
+
+  async function interviewSaved(interview: SavedInterview) {
+    try {
+      const candidate = await loadCandidate(interview.candidateId)
+      rememberCandidate(candidate)
+      setScreen(current => current.view === 'dossier' && current.candidate.id === candidate.id ? { ...current, candidate } : current)
+    } catch {
+      refresh()
+    }
   }
 
   function updateStatus(candidate: CandidateDetail, status: CandidateStatus) {
@@ -112,40 +122,33 @@ function App() {
         <div className="frame header-inner">
           <div className="archive-brand">
             <button className="brand brand-button" type="button" disabled={busy}
-              onClick={() => navigate({ view: 'dashboard' })} aria-label="Центр-инвест, архив кандидатов">
+              onClick={goHome} aria-label="Центр-инвест, архив кандидатов">
               <img src={`${import.meta.env.BASE_URL}brand/centrinvest-logo.svg`} alt="" width={140} height={30} />
             </button>
             <span>HR-аналитика</span>
           </div>
           <div className="header-actions">
+            <button className="secondary" disabled={busy} type="button"
+              onClick={goHome}>На главную</button>
             <a className="action-link" href={archiveDownload()} download>Выгрузить Excel</a>
-            <button disabled={busy} type="button" onClick={() => navigate({ view: 'intake' })}>+ Кандидат / WAV</button>
+            <button disabled={busy} type="button" onClick={() => openUpload()}>+ Кандидат / WAV</button>
           </div>
         </div>
       </header>
       <main className="frame">
-        {screen.view !== 'dashboard' && (
-          <div className="archive-back">
-            <button type="button" className="secondary" disabled={busy}
-              onClick={() => navigate({ view: 'dashboard' })}>← Досье кандидатов</button>
-            {screen.view === 'intake' && screen.candidate && (
-              <button type="button" className="secondary" disabled={busy}
-                onClick={() => navigate({ view: 'dossier', candidate: screen.candidate! })}>К досье кандидата</button>
-            )}
-          </div>
-        )}
         {pending && <p className="panel archive-feedback" role="status">{pending}</p>}
         {error && <div className="panel archive-feedback">
           <p role="alert">{error}</p>
           {screen.view === 'dashboard' && <button type="button" className="secondary" onClick={refresh}>Обновить архив</button>}
         </div>}
-        {screen.view === 'dashboard' && (candidates
-          ? <Dashboard candidates={candidates} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'intake' })} />
-          : !error && <p className="archive-feedback" role="status">Загружаем архив…</p>)}
-        {screen.view === 'intake' && <InterviewForm key={screen.candidate?.id ?? 'new'} busy={busy} candidate={screen.candidate}
-          onSubmit={upload} />}
+        <div hidden={screen.view !== 'dashboard'}>{candidates
+          ? <Dashboard candidates={candidates} busy={busy} onOpen={openCandidate} onAdd={() => openUpload()}>
+            <InterviewForm candidates={candidates} candidateId={uploadCandidateId} onCandidate={setUploadCandidateId}
+              onSaved={interviewSaved} onOpen={openCandidate} />
+          </Dashboard>
+          : !error && <p className="archive-feedback" role="status">Загружаем архив…</p>}</div>
         {screen.view === 'dossier' && <CandidateDossier candidate={screen.candidate} interview={screen.interview} busy={busy}
-          onAdd={() => navigate({ view: 'intake', candidate: screen.candidate })}
+          onAdd={() => openUpload(screen.candidate.id)}
           onInterview={id => openInterview(screen.candidate, id)}
           onStatus={status => updateStatus(screen.candidate, status)}
           onTranscript={updateTranscript} />}

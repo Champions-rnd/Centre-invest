@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { candidateStatuses, type Candidate, type CandidateStatus } from '../../../shared/archive'
 import { formatDate } from './format'
 
@@ -7,12 +7,13 @@ type Props = {
   busy: boolean
   onOpen: (id: string) => void
   onAdd: () => void
+  children: ReactNode
 }
 
 const statusEntries = Object.entries(candidateStatuses) as [CandidateStatus, string][]
 const collator = new Intl.Collator('ru')
 
-export function Dashboard({ candidates, busy, onOpen, onAdd }: Props) {
+export function Dashboard({ candidates, busy, onOpen, onAdd, children }: Props) {
   const [query, setQuery] = useState('')
   const [specialty, setSpecialty] = useState('')
   const [status, setStatus] = useState<CandidateStatus | ''>('')
@@ -49,6 +50,7 @@ export function Dashboard({ candidates, busy, onOpen, onAdd }: Props) {
           <div><dt>На сверке</dt><dd>{reviewCount}</dd></div>
         </dl>
       </section>
+      {children}
       {recentSpecialties.length > 0 && <section className="specialty-overview" aria-labelledby="specialty-title">
         <h2 id="specialty-title">По специальностям</h2>
         <div className="specialty-grid">

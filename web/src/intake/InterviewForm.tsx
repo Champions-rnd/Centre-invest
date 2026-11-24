@@ -1,117 +1,248 @@
-import { useState, type FormEvent } from 'react'
-import { candidateProfileSchema, type Candidate, type CandidateTarget } from '../../../shared/archive'
+import { useRef, useState, type FormEvent } from 'react'
+import { candidateTargetSchema, type Candidate, type CandidateTarget, type SavedInterview } from '../../../shared/archive'
 import { MAX_AUDIO_MB, vacancySchema, type Vacancy } from '../../../shared/contracts'
+import { submitInterview } from '../api'
+import './styles.css'
 
-type Props = {
-  busy: boolean
-  candidate?: Candidate
-  onSubmit: (audio: File, vacancy: Vacancy | null, target: CandidateTarget) => void
+type Selection = { id: string; file: File }
+type Job = Selection & {
+  target: CandidateTarget
+  vacancy: Vacancy | null
+  state: 'waiting' | 'uploading' | 'processing' | 'saved' | 'failed'
+  percent?: number
+  error?: string
+  candidateId?: string
 }
 
-export function InterviewForm({ busy, candidate, onSubmit }: Props) {
-  const [error, setError] = useState('')
-  const [audio, setAudio] = useState<File>()
-  const [dragging, setDragging] = useState(false)
+type Props = {
+  candidates: Candidate[]
+  candidateId: string
+  onCandidate: (id: string) => void
+  onSaved: (interview: SavedInterview) => Promise<void>
+  onOpen: (candidateId: string, interviewId: string) => void
+}
 
-  function selectAudio(file?: File) {
-    setAudio(file)
-    setError('')
+const labels: Record<Job['state'], string> = {
+  waiting: 'В очереди', uploading: 'Загрузка', processing: 'Распознавание и сохранение',
+  saved: 'Сохранено', failed: 'Ошибка',
+}
+
+function CandidateFields({ candidates, prefix, value, onChange }: {
+  candidates: Candidate[]
+  prefix: string
+  value?: string
+  onChange?: (value: string) => void
+}) {
+  const [localId, setLocalId] = useState('')
+  const selected = value ?? localId
+  return (
+    <div className="vacancy-grid">
+      <label className="profile-notes">Кандидат
+        <select name={prefix + 'candidate'} value={selected} onChange={event => {
+          const id = event.target.value
+          if (onChange) onChange(id)
+          else setLocalId(id)
+        }}>
+          <option value="">Новый кандидат</option>
+          {candidates.map(candidate => (
+            <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.specialty}</option>
+          ))}
+        </select>
+      </label>
+      {!selected && <>
+        <label>ФИО <input name={prefix + 'name'} maxLength={180} required /></label>
+        <label>Специальность <input name={prefix + 'specialty'} maxLength={120} required /></label>
+        <details className="profile-notes upload-extra">
+          <summary>Опыт, зарплата и заметка</summary>
+          <div className="vacancy-grid">
+            <label>Опыт <input name={prefix + 'experience'} maxLength={80} /></label>
+            <label>Зарплатные ожидания <input name={prefix + 'salary'} maxLength={80} /></label>
+            <label className="profile-notes">Заметка <textarea name={prefix + 'notes'} maxLength={1500} rows={2} /></label>
+          </div>
+        </details>
+      </>}
+    </div>
+  )
+}
+
+function readTarget(fields: FormData, prefix: string): CandidateTarget | undefined {
+  const candidateId = fields.get(prefix + 'candidate')
+  const parsed = candidateTargetSchema.safeParse(candidateId ? { candidateId } : {
+    newCandidateId: crypto.randomUUID(),
+    profile: {
+      name: fields.get(prefix + 'name'),
+      specialty: fields.get(prefix + 'specialty'),
+      experience: fields.get(prefix + 'experience'),
+      salary: fields.get(prefix + 'salary'),
+      notes: fields.get(prefix + 'notes'),
+    },
+  })
+  return parsed.success ? parsed.data : undefined
+}
+
+export function InterviewForm({ candidates, candidateId, onCandidate, onSaved, onOpen }: Props) {
+  const [files, setFiles] = useState<Selection[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [separate, setSeparate] = useState(false)
+  const [active, setActive] = useState(false)
+  const running = useRef(false)
+  const [dragging, setDragging] = useState(false)
+  const [error, setError] = useState('')
+  const savedCount = jobs.filter(job => job.state === 'saved').length
+  const failures = jobs.filter(job => job.state === 'failed')
+  const separateTargets = separate && files.length > 1
+
+  function selectFiles(incoming: File[]) {
+    if (running.current) return
+    const valid = incoming.filter(file => /\.wav$/i.test(file.name) && file.size > 0 && file.size <= MAX_AUDIO_MB * 1024 * 1024)
+    const added = valid.map(file => ({ id: crypto.randomUUID(), file }))
+    setFiles(current => [...current, ...added])
+    const rejected = incoming.length - valid.length
+    setError(rejected ? `Пропущено файлов: ${rejected}. Поддерживаются WAV до ${MAX_AUDIO_MB} МБ.` : '')
+  }
+
+  function updateJob(id: string, patch: Partial<Job>) {
+    setJobs(current => current.map(job => job.id === id ? { ...job, ...patch } : job))
+  }
+
+  async function processJobs(queue: Job[]) {
+    if (running.current) return
+    running.current = true
+    setActive(true)
+    try {
+      for (const job of queue) {
+        updateJob(job.id, { state: 'uploading', percent: 0 })
+        let saved: SavedInterview
+        try {
+          saved = await submitInterview(job.file, job.vacancy, job.target, job.id, percent => {
+            updateJob(job.id, percent === null ? { state: 'processing' } : { percent })
+          })
+        } catch (failure) {
+          updateJob(job.id, { state: 'failed', error: failure instanceof Error ? failure.message : 'Не удалось обработать файл.' })
+          continue
+        }
+        updateJob(job.id, { state: 'saved', candidateId: saved.candidateId, error: undefined })
+        await onSaved(saved)
+      }
+    } finally {
+      running.current = false
+      setActive(false)
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (running.current || !files.length) return
     const fields = new FormData(event.currentTarget)
     const description = String(fields.get('description') ?? '').trim()
     const criteria = String(fields.get('criteria') ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
     const vacancy = vacancySchema.nullable().safeParse(description || criteria.length ? { description, criteria } : null)
-    if (!audio || !/\.wav$/i.test(audio.name) || audio.size === 0 || audio.size > MAX_AUDIO_MB * 1024 * 1024) {
-      setError(`Выберите WAV до ${MAX_AUDIO_MB} МБ.`)
-      return
-    }
     if (!vacancy.success) {
-      setError('Тема может содержать до 300 символов. Укажите не больше 20 тем, по одной на строку.')
+      setError('Укажите до 20 тем по одному пункту на строку. Максимум 300 символов на тему.')
       return
     }
-    if (candidate) {
-      setError('')
-      onSubmit(audio, vacancy.data, { candidateId: candidate.id })
-      return
+    const common = separateTargets ? undefined : readTarget(fields, 'batch-')
+    const queue: Job[] = []
+    for (const selection of files) {
+      const target = separateTargets ? readTarget(fields, selection.id + '-') : common
+      if (!target) {
+        setError('Укажите имя и специальность для каждого нового кандидата.')
+        return
+      }
+      queue.push({ ...selection, target, vacancy: vacancy.data, state: 'waiting' })
     }
-    const profile = candidateProfileSchema.safeParse({
-      name: fields.get('candidateName'),
-      specialty: fields.get('specialty'),
-      experience: fields.get('experience'),
-      salary: fields.get('salary'),
-      notes: fields.get('notes'),
-    })
-    if (!profile.success) {
-      setError('Укажите имя и специальность кандидата.')
-      return
-    }
+    event.currentTarget.reset()
     setError('')
-    onSubmit(audio, vacancy.data, { profile: profile.data })
+    setFiles([])
+    setSeparate(false)
+    setJobs(current => [...current, ...queue])
+    void processJobs(queue)
+  }
+
+  function retry() {
+    if (running.current) return
+    setJobs(current => current.map(job => job.state === 'failed' ? { ...job, state: 'waiting', error: undefined } : job))
+    void processJobs(failures)
   }
 
   return (
-    <form id="intake" className="intake" onSubmit={handleSubmit}>
+    <section className="panel home-upload" aria-labelledby="intake-title">
       <div className="section-head">
-        <div>
-          <h1 id="intake-title" tabIndex={-1}>{candidate ? 'Новое интервью' : 'Кандидат и интервью'}</h1>
-          <p className="muted">{candidate ? `${candidate.name} · ${candidate.specialty}`
-            : 'Интервью появится в досье после расшифровки записи.'}</p>
-        </div>
+        <h2 id="intake-title" tabIndex={-1}>Загрузка интервью</h2>
+        <p className="muted">Выберите один или несколько WAV. Расшифровки сохранятся в досье кандидатов.</p>
       </div>
-      <fieldset disabled={busy}>
-        {!candidate && <div className="panel profile-fields">
-          <h2>Данные кандидата</h2>
-          <div className="vacancy-grid">
-            <label>ФИО <input name="candidateName" maxLength={180} required /></label>
-            <label>Специальность <input name="specialty" maxLength={120} required /></label>
-            <label>Опыт <input name="experience" maxLength={80} placeholder="Например, 2 года" /></label>
-            <label>Зарплатные ожидания <input name="salary" maxLength={80} placeholder="Например, 120 000 ₽" /></label>
-            <label className="profile-notes">Заметка <textarea name="notes" maxLength={1500} rows={2} /></label>
-          </div>
-        </div>}
-        <div className="intake-panels">
-          <div className="panel">
-            <div className="card-heading"><span className="tile" aria-hidden="true">♫</span><h3>Запись интервью</h3></div>
-            <label className={dragging ? 'drop dragging' : 'drop'}
-              onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true) }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={event => {
-                event.preventDefault()
-                setDragging(false)
-                if (!busy && event.dataTransfer.files.length) selectAudio(event.dataTransfer.files[0])
-              }}>
-              <input type="file" name="audio" accept=".wav,audio/wav,audio/x-wav"
-                onChange={event => {
-                  const file = event.currentTarget.files?.[0]
-                  if (file) selectAudio(file)
-                  event.currentTarget.value = ''
-                }} />
-              <span className="upload-icon" aria-hidden="true">↑</span>
-              <strong>{audio?.name ?? 'Выберите или перетащите файл'}</strong>
-              <span className="muted">WAV до {MAX_AUDIO_MB} МБ и 60 минут</span>
-            </label>
-          </div>
-          <details className="panel vacancy-fields">
-            <summary>Добавить контекст вакансии <span className="muted">Необязательно</span></summary>
-            <p className="muted">Укажите роль или важные темы, чтобы получить более конкретные вопросы.</p>
-            <div className="vacancy-grid">
-              <label>Описание вакансии
-                <textarea name="description" placeholder="Роль и основные задачи" maxLength={12000} rows={3} />
-              </label>
-              <label>Что важно проверить
-                <textarea name="criteria" placeholder={'По одной теме на строку\nНапример, работа с обращениями клиентов'} rows={3} />
-              </label>
-            </div>
-          </details>
-        </div>
-        <div className="actions">
-          <button type="submit">Расшифровать и сохранить</button>
-        </div>
-      </fieldset>
+      <form onSubmit={handleSubmit}>
+        <fieldset disabled={active}>
+          <label className={dragging ? 'drop dragging' : 'drop'}
+            onDragOver={event => { event.preventDefault(); if (!active) setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={event => {
+              event.preventDefault()
+              setDragging(false)
+              if (!active) selectFiles(Array.from(event.dataTransfer.files))
+            }}>
+            <input type="file" multiple accept=".wav,audio/wav,audio/x-wav" aria-label="Выбрать WAV"
+              onChange={event => {
+                selectFiles(Array.from(event.currentTarget.files ?? []))
+                event.currentTarget.value = ''
+              }} />
+            <span className="upload-icon" aria-hidden="true">↑</span>
+            <strong>Выберите или перетащите WAV</strong>
+            <span className="muted">До {MAX_AUDIO_MB} МБ и 60 минут на файл</span>
+          </label>
+          {files.length > 0 && <>
+            {files.length > 1 && <label className="upload-mode">
+              <input type="checkbox" checked={separateTargets} onChange={event => setSeparate(event.target.checked)} />
+              Выбрать кандидата отдельно для каждого файла
+            </label>}
+            <ul className="upload-selection">
+              {files.map(selection => (
+                <li key={selection.id}>
+                  <div className="upload-line">
+                    <strong>{selection.file.name}</strong>
+                    <button type="button" className="secondary upload-remove" aria-label={`Убрать ${selection.file.name}`}
+                      onClick={() => setFiles(current => current.filter(item => item.id !== selection.id))}>Убрать</button>
+                  </div>
+                  {separateTargets && <CandidateFields candidates={candidates} prefix={selection.id + '-'} />}
+                </li>
+              ))}
+            </ul>
+            {!separateTargets && <CandidateFields candidates={candidates} prefix="batch-" value={candidateId} onChange={onCandidate} />}
+            <details className="upload-extra">
+              <summary>Общий контекст вакансии <span className="muted">Необязательно</span></summary>
+              <div className="vacancy-grid">
+                <label>Описание вакансии <textarea name="description" maxLength={12000} rows={3} /></label>
+                <label>Темы для проверки <textarea name="criteria" placeholder="По одной теме на строку" rows={3} /></label>
+              </div>
+            </details>
+            <button type="submit">Расшифровать и сохранить ({files.length})</button>
+          </>}
+        </fieldset>
+      </form>
       {error && <p role="alert">{error}</p>}
-    </form>
+      {!!jobs.length && <section className="upload-queue" aria-labelledby="queue-title">
+        <div className="upload-line">
+          <h3 id="queue-title">Очередь интервью</h3>
+          {!active && <button type="button" className="secondary upload-remove" onClick={() => setJobs([])}>Очистить очередь</button>}
+        </div>
+        <p className="muted" role="status">Сохранено {savedCount} из {jobs.length}{failures.length > 0 ? ` · Ошибок: ${failures.length}` : ''}</p>
+        <ul>
+          {jobs.map(job => (
+            <li key={job.id} data-state={job.state}>
+              <div className="upload-line">
+                <strong>{job.file.name}</strong>
+                <span>{labels[job.state]}{job.state === 'uploading' ? ` · ${job.percent ?? 0}%` : ''}</span>
+              </div>
+              {job.state === 'uploading' && <progress value={job.percent ?? 0} max={100} aria-label={`Загрузка ${job.file.name}`} />}
+              {job.state === 'processing' && <progress aria-label={`Распознавание ${job.file.name}`} />}
+              {job.state === 'failed' && <p className="error">{job.error}</p>}
+              {job.state === 'saved' && job.candidateId && <button type="button" className="secondary upload-remove"
+                onClick={() => onOpen(job.candidateId!, job.id)}>Открыть интервью</button>}
+            </li>
+          ))}
+        </ul>
+        {!active && failures.length > 0 && <button type="button" onClick={retry}>Повторить неудавшиеся ({failures.length})</button>}
+      </section>}
+    </section>
   )
 }
