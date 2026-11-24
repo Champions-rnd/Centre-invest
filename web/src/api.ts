@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import {
-  candidateDetailSchema, candidateSchema, savedInterviewSchema,
+  archiveInterviewSchema, candidateDetailSchema, savedInterviewSchema,
   type CandidateStatus, type CandidateTarget, type SavedInterview,
 } from '../../shared/archive'
 import { coachingResultSchema, roleReviewSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
@@ -56,8 +56,8 @@ export function submitInterview(
   })
 }
 
-export function loadCandidates() {
-  return typedRequest(z.array(candidateSchema), '/api/candidates')
+export function loadArchiveInterviews() {
+  return typedRequest(z.array(archiveInterviewSchema), '/api/interviews')
 }
 
 export function loadCandidate(id: string) {

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import type { Candidate, CandidateDetail, CandidateStatus, CandidateTarget, SavedInterview } from '../shared/archive'
+import type { ArchiveInterview, Candidate, CandidateDetail, CandidateStatus, CandidateTarget, InterviewSummary, SavedInterview } from '../shared/archive'
 import { resultSchema, type InterviewResult } from '../shared/contracts'
 import { ApiError } from './errors'
 
@@ -113,6 +113,15 @@ export function openArchive() {
 
   return {
     listCandidates,
+    listInterviews(): ArchiveInterview[] {
+      const candidates = new Map(listCandidates().map(profile => [profile.id, profile]))
+      const rows = db.prepare(`SELECT ${interviewColumns}, candidate_id AS candidateId FROM interviews
+        ORDER BY created_at DESC, id`).all() as unknown as (InterviewSummary & { candidateId: string })[]
+      return rows.flatMap(({ candidateId, ...summary }) => {
+        const profile = candidates.get(candidateId)
+        return profile ? [{ ...summary, candidate: profile }] : []
+      })
+    },
     candidate,
     interview,
     findInterview,

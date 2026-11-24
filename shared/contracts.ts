@@ -54,10 +54,17 @@ export const recommendationSchema = z.object({
   reason: z.string().trim().min(8).max(360),
   evidenceIds: z.array(z.string().min(1)).max(3),
 })
+export const observationSchema = z.object({
+  kind: z.enum(['strength', 'improvement']),
+  aspect: z.enum(['clarity', 'relevance', 'detail', 'outcome']),
+  text: z.string().trim().min(8).max(300),
+  evidenceIds: z.array(z.string().min(1)).min(1).max(3),
+})
 export const coachingResultSchema = z.object({
   source: z.enum(['local', 'configured', 'rules']),
   ruleSupplement: z.boolean().default(false),
   recommendations: z.array(recommendationSchema).max(12),
+  observations: z.array(observationSchema).max(6).default([]),
 })
 
 export const resultSchema = z.object({
@@ -76,6 +83,7 @@ export type SpeakerRole = z.infer<typeof speakerRoleSchema>
 export type CoachingRequest = z.infer<typeof coachingRequestSchema>
 export type Recommendation = z.infer<typeof recommendationSchema>
 export type CoachingResult = z.infer<typeof coachingResultSchema>
+export type AnswerObservation = z.infer<typeof observationSchema>
 
 export function vacancyCriteria(vacancy: Vacancy) {
   return vacancy.criteria.map((label, index) => ({ id: `c${index + 1}`, label }))

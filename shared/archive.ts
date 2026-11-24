@@ -37,6 +37,7 @@ export const interviewSummarySchema = z.object({
 })
 
 export const candidateDetailSchema = candidateSchema.extend({ interviews: z.array(interviewSummarySchema) })
+export const archiveInterviewSchema = interviewSummarySchema.extend({ candidate: candidateSchema })
 export const savedInterviewSchema = interviewSummarySchema.extend({ candidateId: z.uuid(), result: resultSchema })
 export const transcriptUpdateSchema = z.object({ transcript: transcriptSchema, updatedAt: z.string() })
 
@@ -45,3 +46,5 @@ export type CandidateDetail = z.infer<typeof candidateDetailSchema>
 export type CandidateStatus = z.infer<typeof candidateStatusSchema>
 export type CandidateTarget = z.infer<typeof candidateTargetSchema>
 export type SavedInterview = z.infer<typeof savedInterviewSchema>
+export type InterviewSummary = z.infer<typeof interviewSummarySchema>
+export type ArchiveInterview = z.infer<typeof archiveInterviewSchema>

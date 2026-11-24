@@ -32,6 +32,7 @@ function parseId(value: unknown) {
 app.get('/api/health', (_request, response) => response.json({ status: 'ok' }))
 
 app.get('/api/candidates', (_request, response) => response.json(archive.listCandidates()))
+app.get('/api/interviews', (_request, response) => response.json(archive.listInterviews()))
 app.get('/api/candidates/:id', (request, response) => response.json(archive.candidate(parseId(request.params.id))))
 app.patch('/api/candidates/:id/status', json, (request, response) => {
   const status = candidateStatusSchema.safeParse(request.body?.status)

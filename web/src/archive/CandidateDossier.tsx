@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { candidateStatuses, type CandidateDetail, type CandidateStatus, type SavedInterview } from '../../../shared/archive'
 import type { Segment } from '../../../shared/contracts'
 import { archiveDownload, recordingUrl } from '../api'
 import { ReportView } from '../report/ReportView'
 import { formatCount, formatDate } from './format'
+import { InterviewSort, sortInterviews, type InterviewOrder } from './InterviewSort'
 
 type Props = {
   candidate: CandidateDetail
@@ -15,6 +17,7 @@ type Props = {
 }
 
 export function CandidateDossier({ candidate, interview, busy, onAdd, onInterview, onStatus, onTranscript }: Props) {
+  const [sort, setSort] = useState<InterviewOrder>('recent')
   return (
     <>
       <section className="archive-intro dossier-intro" aria-labelledby="dossier-title">
@@ -37,9 +40,12 @@ export function CandidateDossier({ candidate, interview, busy, onAdd, onIntervie
         </div>
       </section>
       <section className="panel interview-history" aria-labelledby="history-title">
-        <h2 id="history-title">История интервью</h2>
+        <div className="history-heading">
+          <h2 id="history-title">История интервью</h2>
+          <InterviewSort value={sort} onChange={setSort} />
+        </div>
         <ul>
-          {candidate.interviews.map(item => (
+          {sortInterviews(candidate.interviews, sort).map(item => (
             <li key={item.id}>
               <button type="button" className="secondary" disabled={busy} aria-pressed={interview?.id === item.id}
                 onClick={() => onInterview(item.id)}>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { InterviewResult, Segment, SpeakerRole } from '../../../shared/contracts'
 import { groupDialogue } from '../../../shared/dialogue'
 import { requestCoaching, reviewInterviewRoles } from '../api'
+import { AnswerAssessment } from './AnswerAssessment'
 import { CoachingPanel, type CoachingState } from './CoachingPanel'
 
 const roleLabels: Record<SpeakerRole, string> = { hr: 'HR', candidate: 'Кандидат', '': 'Нужна сверка' }
@@ -132,6 +133,8 @@ export function ReportView({ interviewId, result, audioUrl, audioName, onSave }:
         }} onError={() => setAudioError('Браузер не может воспроизвести этот WAV. Расшифровка доступна ниже.')} />
         {audioError && <p className="error" role="status">{audioError}</p>}
       </div>
+      {coaching.status === 'ready' && <AnswerAssessment observations={coaching.result.observations}
+        segments={originals} onJump={segment => play(segment, true)} formatTime={timecode} />}
       <div className="results">
         <section className="panel transcript-panel" aria-labelledby="dialog-title">
           <div className="dialog-heading">
