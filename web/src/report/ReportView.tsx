@@ -3,28 +3,29 @@ import { vacancyCriteria, type InterviewResult, type Segment } from '../../../sh
 
 const statusLabels = {
   supported: 'Подтверждено',
-  partial: 'Частично подтверждено',
-  missing: 'Нет данных',
+  partial: 'Есть совпадения',
+  missing: 'Совпадений нет',
 }
 
 function timecode(ms: number) {
   const seconds = Math.floor(ms / 1000)
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`
 }
 
 type Props = {
   result: InterviewResult
   audioUrl: string
+  audioName?: string
   busy: boolean
   onReanalyze: (transcript: Segment[]) => void
 }
 
-export function ReportView({ result, audioUrl, busy, onReanalyze }: Props) {
+export function ReportView({ result, audioUrl, audioName, busy, onReanalyze }: Props) {
   const player = useRef<HTMLAudioElement>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [audioError, setAudioError] = useState('')
   const segments = new Map(result.transcript.map(segment => [segment.id, segment]))
-  const criteria = new Map(vacancyCriteria(result.vacancy).map(({ id, label }) => [id, label]))
+  const criteria = new Map(result.vacancy ? vacancyCriteria(result.vacancy).map(({ id, label }) => [id, label]) : [])
 
   function timestamp(segment: Segment) {
     const time = timecode(segment.startMs)
@@ -50,19 +51,22 @@ export function ReportView({ result, audioUrl, busy, onReanalyze }: Props) {
 
   return (
     <section className="report" aria-labelledby="report-title">
-      {result.mode === 'demo' && <p className="eyebrow">Демоотчёт</p>}
       <h2 id="report-title" tabIndex={-1}>Разбор интервью</h2>
-      <p className="muted report-description">{result.vacancy.description}</p>
+      {result.vacancy && <p className="muted report-description">{result.vacancy.description}</p>}
       {audioUrl && (
         <div className="panel player">
-          <div><strong>Запись интервью</strong><p className="muted">Таймкоды отсчитываются от начала WAV</p></div>
-          <audio ref={player} src={audioUrl} controls preload="metadata" />
+          <div className="player-recording">
+            <strong>{audioName ?? 'Запись интервью'}</strong>
+            <p className="muted">Таймкоды отсчитываются от начала WAV</p>
+          </div>
+          <audio ref={player} src={audioUrl} controls preload="metadata"
+            onError={() => setAudioError('Браузер не может воспроизвести этот WAV. Расшифровка доступна ниже.')} />
           {audioError && <p className="error" role="status">{audioError}</p>}
         </div>
       )}
-      <div className="results">
-        <section className="findings">
-          <h3 className="sr-only">Отчёт для рекрутера</h3>
+      <div className={result.vacancy ? 'results' : 'results transcript-only'}>
+        {result.vacancy && <section className="findings">
+          <div><h3>Отчёт по критериям</h3><p className="muted">Поиск по ключевым словам в расшифровке</p></div>
           {result.report.map(finding => (
             <article key={finding.criterionId} className="panel finding">
               <div className="finding-heading">
@@ -72,42 +76,35 @@ export function ReportView({ result, audioUrl, busy, onReanalyze }: Props) {
               <p>{finding.conclusion}</p>
               {finding.evidenceIds.map(id => {
                 const segment = segments.get(id)
-                return segment && <blockquote key={id}>{timestamp(segment)} {segment.speaker} · «{segment.text}»</blockquote>
+                return segment && <blockquote key={id}>{timestamp(segment)} {segment.speaker && `${segment.speaker} · `}«{segment.text}»</blockquote>
               })}
               {finding.gaps.length > 0 && <><h5>Что неизвестно</h5><ul>{finding.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></>}
               {finding.nextQuestions.length > 0 && <><h5>Что спросить</h5><ul>{finding.nextQuestions.map((question, index) => <li key={index}>{question}</li>)}</ul></>}
             </article>
           ))}
-        </section>
+        </section>}
         <section className="panel transcript-panel">
           <h3>Расшифровка</h3>
-          {result.mode === 'demo' && <p className="muted">Справочный текст из кейса. Таймкоды приблизительные.</p>}
           <ul className="transcript">
             {result.transcript.map(segment => (
               <li key={segment.id}>
-                <div className="speaker">{timestamp(segment)} <strong>{segment.speaker}</strong></div>
-                {result.mode === 'demo' ? <p>{segment.text}</p> : (
-                  <textarea rows={2} aria-label={`Реплика ${segment.speaker} на ${timecode(segment.startMs)}`}
-                    value={edits[segment.id] ?? segment.text} disabled={busy}
-                    onChange={event => setEdits({ ...edits, [segment.id]: event.target.value })} />
-                )}
+                <div className="speaker">
+                  {timestamp(segment)} <span className="muted">– {timecode(segment.endMs)}</span>
+                  {segment.speaker && <strong>{segment.speaker}</strong>}
+                </div>
+                <textarea rows={2} aria-label={`Фрагмент с ${timecode(segment.startMs)}`}
+                  value={edits[segment.id] ?? segment.text} disabled={busy}
+                  onChange={event => setEdits({ ...edits, [segment.id]: event.target.value })} />
               </li>
             ))}
           </ul>
-          {result.mode === 'live' && (
+          {result.vacancy && (
             <button type="button" disabled={busy || !canReanalyze} onClick={() => onReanalyze(updatedTranscript)}>
               Пересобрать отчёт
             </button>
           )}
         </section>
       </div>
-      {result.mode === 'demo' && (
-        <p className="credit">
-          Евгений Гришаков, <a href="https://www.youtube.com/watch?v=49nRXr1_xWE&t=1048s">интервью с Михаилом Чупраковым о Potion Craft</a>.
-          {' '}<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Для кейса выделен фрагмент 17:28–20:28.
-          {' '}<a href={`${import.meta.env.BASE_URL}demo/source-and-license.txt`}>Об источнике</a>
-        </p>
-      )}
     </section>
   )
 }

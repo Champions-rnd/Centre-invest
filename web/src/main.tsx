@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { InterviewResult, Segment } from '../../shared/contracts'
-import { loadDemo, rerunAnalysis, submitInterview } from './api'
+import { rerunAnalysis, submitInterview } from './api'
 import { InterviewForm } from './intake/InterviewForm'
 import { ReportView } from './report/ReportView'
 import './styles.css'
@@ -45,11 +45,8 @@ function App() {
   }
 
   function reanalyze(transcript: Segment[]) {
-    if (result) void run(() => rerunAnalysis({ vacancy: result.vacancy, transcript }), audioFile, false)
-  }
-
-  function openDemo() {
-    void run(loadDemo)
+    const vacancy = result?.vacancy
+    if (vacancy) void run(() => rerunAnalysis({ vacancy, transcript }), audioFile, false)
   }
 
   return (
@@ -61,44 +58,41 @@ function App() {
           </a>
           <nav aria-label="Разделы страницы">
             <a href="#intake">Новый разбор</a>
-            {result && <a href="#report-title">Отчёт</a>}
+            {result && <a href="#report-title">Расшифровка</a>}
           </nav>
-          <span className="prototype">Учебный прототип</span>
         </div>
       </header>
       <main id="top" className="frame">
         <section className="hero" aria-labelledby="headline">
           <div className="hero-content">
-            <p className="eyebrow">Кейс-чемпионат ЮФУ · Кейс 11</p>
             <h1 id="headline">HR-аналитика<br />интервью</h1>
-            <p className="hero-text">Сопоставьте реплики с критериями вакансии и подготовьте вопросы для следующей встречи.</p>
-            <button type="button" disabled={busy} onClick={openDemo}>Открыть демоотчёт</button>
+            <p className="hero-text">Расшифруйте запись, перейдите к репликам по таймкодам и найдите фрагменты по критериям вакансии.</p>
+            <a className="primary-link" href="#intake">Загрузить запись</a>
           </div>
           <div className="hero-art" aria-hidden="true">
             <div className="orbit" /><div className="orbit orbit-two" />
             <div className="visual-card back-card" />
             <div className="visual-card recording-card">
-              <div className="recording-top"><span className="record-symbol">●</span><span>Запись интервью</span><span className="record-duration">03:00</span></div>
+              <div className="recording-top"><span className="record-symbol">●</span><span>Запись интервью</span></div>
               <div className="wave">
                 {[24, 43, 64, 42, 76, 96, 57, 34, 51, 85, 63, 35, 55, 73, 45, 25].map((height, index) =>
                   <i key={index} style={{ height: `${height}%` }} />)}
               </div>
-              <div className="recording-bottom"><span>00:00</span><span>01:30</span><span>03:00</span></div>
             </div>
-            <div className="visual-card note-card"><span className="note-icon">✓</span><span><strong>Карта вакансии</strong><small>4 критерия</small></span></div>
+            <div className="visual-card note-card"><span className="note-icon">✓</span><span><strong>Расшифровка</strong><small>С таймкодами</small></span></div>
           </div>
         </section>
-        <InterviewForm busy={busy} onDemo={openDemo}
+        <InterviewForm busy={busy}
           onSubmit={(audio, vacancy) => void run(() => submitInterview(audio, vacancy), audio)} />
-        {busy && <p role="status">Обрабатываем запрос…</p>}
+        {busy && <p role="status">Обрабатываем запись. Длинные записи могут занять несколько минут.</p>}
         {error && <p className="error" role="alert">{error}</p>}
         {result && <ReportView key={revision} result={result}
-          audioUrl={result.mode === 'demo' ? `${import.meta.env.BASE_URL}demo/interview.wav` : audioUrl}
+          audioUrl={audioUrl} audioName={audioFile?.name}
           busy={busy} onReanalyze={reanalyze} />}
       </main>
       <footer className="site-footer">
         <div className="frame footer-inner">
-          <span>HR-аналитика · Кейс-чемпионат ЮФУ</span>
+          <span>HR-аналитика</span>
           <a href="https://www.centrinvest.ru/">Сайт банка «Центр-инвест»</a>
         </div>
       </footer>

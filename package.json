@@ -1,5 +1,5 @@
 {
-  "name": "hr-analytics-hackathon",
+  "name": "hr-analytics",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,7 @@
     "dev:api": "node --watch --import tsx server/index.ts",
     "dev:web": "vite",
     "check": "tsc --noEmit",
+    "setup:speech": "node scripts/setup-speech.mjs",
     "build": "npm run check && vite build",
     "start": "node --import tsx server/index.ts"
   },

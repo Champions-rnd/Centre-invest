@@ -12,14 +12,10 @@ async function requestResult(path: string, init?: RequestInit) {
   return parsed.data
 }
 
-export function loadDemo() {
-  return requestResult('/api/demo')
-}
-
-export function submitInterview(audio: File, vacancy: Vacancy) {
+export function submitInterview(audio: File, vacancy: Vacancy | null) {
   const body = new FormData()
   body.append('audio', audio)
-  body.append('vacancy', JSON.stringify(vacancy))
+  if (vacancy) body.append('vacancy', JSON.stringify(vacancy))
   return requestResult('/api/interviews', { method: 'POST', body })
 }
 

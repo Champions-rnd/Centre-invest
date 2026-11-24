@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+export const MAX_AUDIO_MB = 50
+export const MAX_AUDIO_SECONDS = 60 * 60
+
 export const vacancySchema = z.object({
   description: z.string().trim().min(1).max(12_000),
   criteria: z.array(z.string().trim().min(1).max(300)).min(1).max(20),
@@ -7,7 +10,7 @@ export const vacancySchema = z.object({
 
 export const segmentSchema = z.object({
   id: z.string().min(1),
-  speaker: z.string().min(1),
+  speaker: z.string(),
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),
   text: z.string().trim().min(1),
@@ -35,8 +38,10 @@ export const analysisRequestSchema = z.object({
   transcript: transcriptSchema,
 })
 
-export const resultSchema = analysisRequestSchema.extend({
-  mode: z.enum(['demo', 'live']),
+export const resultSchema = z.object({
+  mode: z.literal('live'),
+  vacancy: vacancySchema.nullable(),
+  transcript: transcriptSchema,
   report: reportSchema,
 })
 
