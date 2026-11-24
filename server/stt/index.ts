@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
-import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { access, copyFile, link, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
 import { MAX_AUDIO_SECONDS } from '../../shared/contracts'
@@ -41,6 +41,39 @@ function processError(error: unknown, failure: ApiError) {
   return failure
 }
 
+function whisperFailure(error: unknown) {
+  const failure = error as { code?: string | number; stderr?: string; signal?: string }
+  const code = failure.code
+  if (code === 'EACCES' || code === 'EPERM') {
+    return new ApiError(503, 'WHISPER_ACCESS_DENIED', 'Система отказала в запуске Whisper. Код ошибки: ' + code + '.')
+  }
+  if (typeof code === 'number' && (code >>> 0) === 0xc0000135) {
+    return new ApiError(503, 'WHISPER_DLL_MISSING', 'Whisper не запустился: отсутствует библиотека DLL (0xC0000135).')
+  }
+  const detail = /failed to (?:open|load|initialize)[^\n]*(?:model|context)/iu.test(failure.stderr ?? '')
+    ? 'Whisper не смог открыть или загрузить модель.'
+    : 'Whisper не смог обработать запись.'
+  const status = typeof code === 'number' && (code >>> 0) >= 0x80000000
+    ? '0x' + (code >>> 0).toString(16).toUpperCase()
+    : code ?? failure.signal
+  return new ApiError(502, 'TRANSCRIPTION_FAILED', status === undefined ? detail : detail + ' Код ошибки: ' + status + '.')
+}
+
+async function whisperModelPath(path: string, directory: string, name: string) {
+  const absolute = resolve(path)
+  const argument = relative(directory, absolute)
+  // Some Windows builds read CLI paths through a narrow-character API.
+  if (/^[\x20-\x7e]+$/u.test(argument)) return argument
+  const alias = join(directory, name)
+  const source = await realpath(absolute)
+  try {
+    await link(source, alias)
+  } catch {
+    await copyFile(source, alias)
+  }
+  return name
+}
+
 async function normalizeAudio(command: string, input: string, output: string) {
   try {
     await run(command, [
@@ -57,19 +90,30 @@ async function normalizeAudio(command: string, input: string, output: string) {
   }
 }
 
-async function recognize(paths: ReturnType<typeof speechPaths>, input: string, output: string) {
+async function recognize(paths: ReturnType<typeof speechPaths>, directory: string) {
+  const command = /[/\\]/u.test(paths.whisper) ? resolve(paths.whisper) : paths.whisper
+  let model: string
+  let vad: string
   try {
-    await run(paths.whisper, [
-      '-m', paths.model, '-f', input, '-l', 'auto', '-ng', '-np', '-oj', '-of', output,
-      '--vad', '-vm', paths.vad, '-ml', '120', '-sow',
-    ], { ...options, timeout: 20 * 60_000 })
+    model = await whisperModelPath(paths.model, directory, 'model.bin')
+    vad = await whisperModelPath(paths.vad, directory, 'vad.bin')
+  } catch {
+    throw new ApiError(503, 'SPEECH_MODEL_ACCESS', 'Не удалось подготовить модели Whisper. Проверьте пути, права доступа и свободное место.')
+  }
+  try {
+    await run(command, [
+      '-m', model, '-f', 'speech.wav', '-l', 'auto', '-ng', '-np', '-oj', '-of', 'transcript',
+      '--vad', '-vm', vad, '-ml', '120', '-sow',
+    ], { ...options, cwd: directory, timeout: 20 * 60_000 })
   } catch (error) {
-    throw processError(error, new ApiError(502, 'TRANSCRIPTION_FAILED', 'Движок распознавания не смог обработать запись.'))
+    const failure = processError(error, whisperFailure(error))
+    console.error('Ошибка распознавания:', failure.code, failure.message)
+    throw failure
   }
 
   let result: unknown
   try {
-    result = JSON.parse(await readFile(output + '.json', 'utf8'))
+    result = JSON.parse(await readFile(join(directory, 'transcript.json'), 'utf8'))
   } catch {
     throw new ApiError(502, 'INVALID_TRANSCRIPT', 'Движок не вернул читаемую расшифровку.')
   }
@@ -101,7 +145,7 @@ export async function transcribeWav(audio: Express.Multer.File): Promise<Segment
     const normalized = join(directory, 'speech.wav')
     await writeFile(input, audio.buffer)
     await normalizeAudio(paths.ffmpeg, input, normalized)
-    return await recognize(paths, normalized, join(directory, 'transcript'))
+    return await recognize(paths, directory)
   } finally {
     transcribing = false
     if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {

@@ -160,7 +160,7 @@ function App() {
         {pending && <p className="panel archive-feedback" role="status">{pending}</p>}
         {error && <div className="panel archive-feedback">
           <p role="alert">{error}</p>
-          {(screen.view === 'dashboard' || screen.view === 'new-candidate') &&
+          {(screen.view === 'dashboard' || screen.view === 'new-candidate') && (!archive || !candidates) &&
             <button type="button" className="secondary" onClick={refresh}>Обновить архив</button>}
         </div>}
         <div hidden={screen.view !== 'dashboard'}>{archive
