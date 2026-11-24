@@ -22,6 +22,7 @@ type Props = {
 export function ReportView({ result, audioUrl, busy, onReanalyze }: Props) {
   const player = useRef<HTMLAudioElement>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
+  const [audioError, setAudioError] = useState('')
   const segments = new Map(result.transcript.map(segment => [segment.id, segment]))
   const criteria = new Map(vacancyCriteria(result.vacancy).map(({ id, label }) => [id, label]))
 
@@ -31,10 +32,12 @@ export function ReportView({ result, audioUrl, busy, onReanalyze }: Props) {
 
     return (
       <button className="timestamp link" type="button" aria-label={`К записи на ${time}`} onClick={() => {
-        if (player.current) {
-          player.current.currentTime = segment.startMs / 1000
-          void player.current.play().catch(() => {})
-        }
+        if (!player.current) return
+        setAudioError('')
+        player.current.currentTime = segment.startMs / 1000
+        void player.current.play().catch(error => {
+          if (error.name !== 'AbortError') setAudioError('Не удалось воспроизвести запись. Попробуйте запустить её в плеере.')
+        })
       }}>{time}</button>
     )
   }
@@ -46,48 +49,65 @@ export function ReportView({ result, audioUrl, busy, onReanalyze }: Props) {
     && updatedTranscript.some((segment, index) => segment.text !== result.transcript[index].text)
 
   return (
-    <div className="results">
-      <section className="panel">
-        <h2>Расшифровка</h2>
-        {audioUrl && <audio ref={player} src={audioUrl} controls preload="metadata" />}
-        {result.mode === 'demo' && <p className="muted">Учебный пример с вымышленными репликами. Аудио для него отсутствует.</p>}
-        <ul className="transcript">
-          {result.transcript.map(segment => (
-            <li key={segment.id}>
-              <div className="speaker">{timestamp(segment)} <strong>{segment.speaker}</strong></div>
-              {result.mode === 'demo' ? <p>{segment.text}</p> : (
-                <textarea rows={2} aria-label={`Реплика ${segment.speaker} на ${timecode(segment.startMs)}`}
-                  value={edits[segment.id] ?? segment.text} disabled={busy}
-                  onChange={event => setEdits({ ...edits, [segment.id]: event.target.value })} />
-              )}
-            </li>
+    <section className="report" aria-labelledby="report-title">
+      {result.mode === 'demo' && <p className="eyebrow">Демоотчёт</p>}
+      <h2 id="report-title" tabIndex={-1}>Разбор интервью</h2>
+      <p className="muted report-description">{result.vacancy.description}</p>
+      {audioUrl && (
+        <div className="panel player">
+          <div><strong>Запись интервью</strong><p className="muted">Таймкоды отсчитываются от начала WAV</p></div>
+          <audio ref={player} src={audioUrl} controls preload="metadata" />
+          {audioError && <p className="error" role="status">{audioError}</p>}
+        </div>
+      )}
+      <div className="results">
+        <section className="findings">
+          <h3 className="sr-only">Отчёт для рекрутера</h3>
+          {result.report.map(finding => (
+            <article key={finding.criterionId} className="panel finding">
+              <div className="finding-heading">
+                <h4>{criteria.get(finding.criterionId)}</h4>
+                <span className={`status ${finding.status}`}>{statusLabels[finding.status]}</span>
+              </div>
+              <p>{finding.conclusion}</p>
+              {finding.evidenceIds.map(id => {
+                const segment = segments.get(id)
+                return segment && <blockquote key={id}>{timestamp(segment)} {segment.speaker} · «{segment.text}»</blockquote>
+              })}
+              {finding.gaps.length > 0 && <><h5>Что неизвестно</h5><ul>{finding.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></>}
+              {finding.nextQuestions.length > 0 && <><h5>Что спросить</h5><ul>{finding.nextQuestions.map((question, index) => <li key={index}>{question}</li>)}</ul></>}
+            </article>
           ))}
-        </ul>
-        {result.mode === 'live' && (
-          <button type="button" disabled={busy || !canReanalyze} onClick={() => onReanalyze(updatedTranscript)}>
-            Пересобрать отчёт
-          </button>
-        )}
-      </section>
-      <section className="panel">
-        <h2>Отчёт для рекрутера</h2>
-        <p className="muted">{result.vacancy.description}</p>
-        {result.report.map(finding => (
-          <article key={finding.criterionId} className="finding">
-            <div className="finding-heading">
-              <h3>{criteria.get(finding.criterionId)}</h3>
-              <span className={`status ${finding.status}`}>{statusLabels[finding.status]}</span>
-            </div>
-            <p>{finding.conclusion}</p>
-            {finding.evidenceIds.map(id => {
-              const segment = segments.get(id)
-              return segment && <blockquote key={id}>{timestamp(segment)} {segment.speaker} · «{segment.text}»</blockquote>
-            })}
-            {finding.gaps.length > 0 && <><h4>Что неизвестно</h4><ul>{finding.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></>}
-            {finding.nextQuestions.length > 0 && <><h4>Что спросить</h4><ul>{finding.nextQuestions.map((question, index) => <li key={index}>{question}</li>)}</ul></>}
-          </article>
-        ))}
-      </section>
-    </div>
+        </section>
+        <section className="panel transcript-panel">
+          <h3>Расшифровка</h3>
+          {result.mode === 'demo' && <p className="muted">Справочный текст из кейса. Таймкоды приблизительные.</p>}
+          <ul className="transcript">
+            {result.transcript.map(segment => (
+              <li key={segment.id}>
+                <div className="speaker">{timestamp(segment)} <strong>{segment.speaker}</strong></div>
+                {result.mode === 'demo' ? <p>{segment.text}</p> : (
+                  <textarea rows={2} aria-label={`Реплика ${segment.speaker} на ${timecode(segment.startMs)}`}
+                    value={edits[segment.id] ?? segment.text} disabled={busy}
+                    onChange={event => setEdits({ ...edits, [segment.id]: event.target.value })} />
+                )}
+              </li>
+            ))}
+          </ul>
+          {result.mode === 'live' && (
+            <button type="button" disabled={busy || !canReanalyze} onClick={() => onReanalyze(updatedTranscript)}>
+              Пересобрать отчёт
+            </button>
+          )}
+        </section>
+      </div>
+      {result.mode === 'demo' && (
+        <p className="credit">
+          Евгений Гришаков, <a href="https://www.youtube.com/watch?v=49nRXr1_xWE&t=1048s">интервью с Михаилом Чупраковым о Potion Craft</a>.
+          {' '}<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Для кейса выделен фрагмент 17:28–20:28.
+          {' '}<a href={`${import.meta.env.BASE_URL}demo/source-and-license.txt`}>Об источнике</a>
+        </p>
+      )}
+    </section>
   )
 }
