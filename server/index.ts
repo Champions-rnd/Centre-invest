@@ -3,20 +3,85 @@ import { loadEnvFile } from 'node:process'
 import { resolve } from 'node:path'
 import express, { type ErrorRequestHandler } from 'express'
 import multer from 'multer'
+import { z } from 'zod'
+import { candidateStatusSchema, candidateTargetSchema, transcriptUpdateSchema } from '../shared/archive'
 import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_MB, vacancySchema } from '../shared/contracts'
 import { coachInterview } from './analysis/coach'
+import { openArchive } from './archive'
 import { ApiError } from './errors'
+import { exportArchive } from './export'
 import { buildReport, processInterview } from './report'
 
 if (existsSync('.env')) loadEnvFile('.env')
 
 const app = express()
+const archive = openArchive()
+const json = express.json({ limit: '5mb' })
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_AUDIO_MB * 1024 * 1024, files: 1, fields: 1, fieldSize: 96 * 1024 },
+  limits: { fileSize: MAX_AUDIO_MB * 1024 * 1024, files: 1, fields: 2, fieldSize: 96 * 1024 },
 })
 
+function parseId(value: unknown) {
+  const id = z.uuid().safeParse(value)
+  if (!id.success) throw new ApiError(400, 'INVALID_ID', 'Некорректный идентификатор.')
+  return id.data
+}
+
 app.get('/api/health', (_request, response) => response.json({ status: 'ok' }))
+
+app.get('/api/candidates', (_request, response) => response.json(archive.listCandidates()))
+app.get('/api/candidates/:id', (request, response) => response.json(archive.candidate(parseId(request.params.id))))
+app.patch('/api/candidates/:id/status', json, (request, response) => {
+  const status = candidateStatusSchema.safeParse(request.body?.status)
+  if (!status.success) throw new ApiError(400, 'INVALID_STATUS', 'Выберите статус кандидата.')
+  response.json(archive.updateStatus(parseId(request.params.id), status.data))
+})
+
+app.get('/api/export.xlsx', async (request, response) => {
+  const candidateId = request.query.candidate === undefined ? undefined : parseId(request.query.candidate)
+  const workbook = await exportArchive(archive, candidateId)
+  response.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    .attachment(candidateId ? 'candidate-interviews.xlsx' : 'hr-interviews.xlsx').send(workbook)
+})
+
+app.get('/api/interviews/:id', (request, response) => response.json(archive.interview(parseId(request.params.id))))
+app.get('/api/interviews/:id/audio', (request, response) => {
+  const id = parseId(request.params.id)
+  const size = archive.recordingSize(id)
+  const range = request.range(size)
+  response.type('audio/wav').set('Accept-Ranges', 'bytes')
+  if (range === -1) {
+    response.set('Content-Range', `bytes */${size}`).status(416).end()
+    return
+  }
+  if (Array.isArray(range) && range.type === 'bytes' && range.length === 1) {
+    const { start, end } = range[0]
+    response.set('Content-Range', `bytes ${start}-${end}/${size}`)
+      .status(206).send(archive.recordingBytes(id, start, end - start + 1))
+    return
+  }
+  response.send(archive.recordingBytes(id, 0, size))
+})
+
+app.patch('/api/interviews/:id/transcript', json, async (request, response) => {
+  const input = transcriptUpdateSchema.safeParse(request.body)
+  if (!input.success) throw new ApiError(400, 'INVALID_TRANSCRIPT', 'Проверьте исправленную расшифровку.')
+  const stored = archive.interview(parseId(request.params.id))
+  if (stored.updatedAt !== input.data.updatedAt) {
+    throw new ApiError(409, 'EDIT_CONFLICT', 'Расшифровка уже изменилась. Откройте интервью заново.')
+  }
+  const transcript = stored.result.transcript
+  if (transcript.length !== input.data.transcript.length || input.data.transcript.some((segment, index) => {
+    const original = transcript[index]
+    return segment.id !== original.id || segment.startMs !== original.startMs || segment.endMs !== original.endMs
+  })) throw new ApiError(400, 'INVALID_TIMECODES', 'При редактировании сохраните исходные таймкоды и порядок реплик.')
+
+  const { vacancy } = stored.result
+  const result = vacancy ? await buildReport({ vacancy, transcript: input.data.transcript })
+    : { ...stored.result, transcript: input.data.transcript }
+  response.json(archive.saveTranscript(stored.id, stored.updatedAt, result))
+})
 
 app.post('/api/interviews', upload.single('audio'), async (request, response) => {
   const audio = request.file
@@ -36,10 +101,25 @@ app.post('/api/interviews', upload.single('audio'), async (request, response) =>
     throw new ApiError(400, 'INVALID_VACANCY', 'Проверьте описание вакансии и критерии.')
   }
 
-  response.json(await processInterview(audio, vacancy.data))
+  if (request.body?.candidate === undefined) {
+    response.json(await processInterview(audio, vacancy.data))
+    return
+  }
+
+  let rawCandidate: unknown
+  try {
+    rawCandidate = JSON.parse(request.body.candidate)
+  } catch {
+    throw new ApiError(400, 'INVALID_CANDIDATE', 'Проверьте данные кандидата.')
+  }
+  const target = candidateTargetSchema.safeParse(rawCandidate)
+  if (!target.success) throw new ApiError(400, 'INVALID_CANDIDATE', 'Укажите имя и специальность кандидата.')
+  if ('candidateId' in target.data) archive.candidate(target.data.candidateId)
+  const result = await processInterview(audio, vacancy.data)
+  response.status(201).json(archive.saveInterview(target.data, audio, result))
 })
 
-app.post('/api/analyze', express.json({ limit: '5mb' }), async (request, response) => {
+app.post('/api/analyze', json, async (request, response) => {
   const input = analysisRequestSchema.safeParse(request.body)
   if (!input.success) {
     throw new ApiError(400, 'INVALID_INPUT', 'Проверьте вакансию и исправленную расшифровку.')
@@ -47,7 +127,7 @@ app.post('/api/analyze', express.json({ limit: '5mb' }), async (request, respons
   response.json(await buildReport(input.data))
 })
 
-app.post('/api/coach', express.json({ limit: '5mb' }), async (request, response) => {
+app.post('/api/coach', json, async (request, response) => {
   const input = coachingRequestSchema.safeParse(request.body)
   if (!input.success) throw new ApiError(400, 'INVALID_INPUT', 'Проверьте расшифровку и контекст вакансии.')
   const controller = new AbortController()

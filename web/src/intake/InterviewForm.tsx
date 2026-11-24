@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from 'react'
+import { candidateProfileSchema, type Candidate, type CandidateTarget } from '../../../shared/archive'
 import { MAX_AUDIO_MB, vacancySchema, type Vacancy } from '../../../shared/contracts'
 
 type Props = {
   busy: boolean
-  onSubmit: (audio: File, vacancy: Vacancy | null) => void
+  candidate?: Candidate
+  onSubmit: (audio: File, vacancy: Vacancy | null, target: CandidateTarget) => void
 }
 
-export function InterviewForm({ busy, onSubmit }: Props) {
+export function InterviewForm({ busy, candidate, onSubmit }: Props) {
   const [error, setError] = useState('')
   const [audio, setAudio] = useState<File>()
   const [dragging, setDragging] = useState(false)
@@ -30,16 +32,46 @@ export function InterviewForm({ busy, onSubmit }: Props) {
       setError('Тема может содержать до 300 символов. Укажите не больше 20 тем, по одной на строку.')
       return
     }
+    if (candidate) {
+      setError('')
+      onSubmit(audio, vacancy.data, { candidateId: candidate.id })
+      return
+    }
+    const profile = candidateProfileSchema.safeParse({
+      name: fields.get('candidateName'),
+      specialty: fields.get('specialty'),
+      experience: fields.get('experience'),
+      salary: fields.get('salary'),
+      notes: fields.get('notes'),
+    })
+    if (!profile.success) {
+      setError('Укажите имя и специальность кандидата.')
+      return
+    }
     setError('')
-    onSubmit(audio, vacancy.data)
+    onSubmit(audio, vacancy.data, { profile: profile.data })
   }
 
   return (
     <form id="intake" className="intake" onSubmit={handleSubmit}>
       <div className="section-head">
-        <div><h1>Разбор собеседования</h1><p className="muted">Загрузите запись, чтобы получить расшифровку и вопросы для следующей встречи.</p></div>
+        <div>
+          <h1 id="intake-title" tabIndex={-1}>{candidate ? 'Новое интервью' : 'Кандидат и интервью'}</h1>
+          <p className="muted">{candidate ? `${candidate.name} · ${candidate.specialty}`
+            : 'Интервью появится в досье после расшифровки записи.'}</p>
+        </div>
       </div>
       <fieldset disabled={busy}>
+        {!candidate && <div className="panel profile-fields">
+          <h2>Данные кандидата</h2>
+          <div className="vacancy-grid">
+            <label>ФИО <input name="candidateName" maxLength={180} required /></label>
+            <label>Специальность <input name="specialty" maxLength={120} required /></label>
+            <label>Опыт <input name="experience" maxLength={80} placeholder="Например, 2 года" /></label>
+            <label>Зарплатные ожидания <input name="salary" maxLength={80} placeholder="Например, 120 000 ₽" /></label>
+            <label className="profile-notes">Заметка <textarea name="notes" maxLength={1500} rows={2} /></label>
+          </div>
+        </div>}
         <div className="intake-panels">
           <div className="panel">
             <div className="card-heading"><span className="tile" aria-hidden="true">♫</span><h3>Запись интервью</h3></div>
@@ -76,7 +108,7 @@ export function InterviewForm({ busy, onSubmit }: Props) {
           </details>
         </div>
         <div className="actions">
-          <button type="submit">Расшифровать запись</button>
+          <button type="submit">Расшифровать и сохранить</button>
         </div>
       </fieldset>
       {error && <p role="alert">{error}</p>}

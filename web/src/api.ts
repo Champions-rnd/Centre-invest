@@ -1,4 +1,9 @@
-import { coachingResultSchema, resultSchema, type CoachingRequest, type Vacancy } from '../../shared/contracts'
+import { z } from 'zod'
+import {
+  candidateDetailSchema, candidateSchema, savedInterviewSchema,
+  type CandidateStatus, type CandidateTarget, type SavedInterview,
+} from '../../shared/archive'
+import { coachingResultSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
 
 async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(path, init)
@@ -10,23 +15,53 @@ async function requestJson(path: string, init?: RequestInit): Promise<unknown> {
   return result
 }
 
-export async function submitInterview(audio: File, vacancy: Vacancy | null) {
-  const body = new FormData()
-  body.append('audio', audio)
-  if (vacancy) body.append('vacancy', JSON.stringify(vacancy))
-  const parsed = resultSchema.safeParse(await requestJson('/api/interviews', { method: 'POST', body }))
-  if (!parsed.success) throw new Error('Сервер вернул расшифровку в неожиданном формате.')
+async function typedRequest<T>(schema: z.ZodType<T>, path: string, init?: RequestInit): Promise<T> {
+  const parsed = schema.safeParse(await requestJson(path, init))
+  if (!parsed.success) throw new Error('Сервер вернул данные в неожиданном формате.')
   return parsed.data
 }
 
-export async function requestCoaching(input: CoachingRequest, signal: AbortSignal) {
-  const response = await requestJson('/api/coach', {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  const parsed = coachingResultSchema.safeParse(response)
-  if (!parsed.success) throw new Error('Сервер вернул рекомендации в неожиданном формате.')
-  return parsed.data
+function jsonRequest(method: 'PATCH' | 'POST', input: unknown, signal?: AbortSignal): RequestInit {
+  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal }
+}
+
+export function submitInterview(audio: File, vacancy: Vacancy | null, candidate: CandidateTarget) {
+  const body = new FormData()
+  body.append('audio', audio)
+  body.append('candidate', JSON.stringify(candidate))
+  if (vacancy) body.append('vacancy', JSON.stringify(vacancy))
+  return typedRequest(savedInterviewSchema, '/api/interviews', { method: 'POST', body })
+}
+
+export function loadCandidates() {
+  return typedRequest(z.array(candidateSchema), '/api/candidates')
+}
+
+export function loadCandidate(id: string) {
+  return typedRequest(candidateDetailSchema, `/api/candidates/${id}`)
+}
+
+export function saveCandidateStatus(id: string, status: CandidateStatus) {
+  return typedRequest(candidateDetailSchema, `/api/candidates/${id}/status`, jsonRequest('PATCH', { status }))
+}
+
+export function loadInterview(id: string) {
+  return typedRequest(savedInterviewSchema, `/api/interviews/${id}`)
+}
+
+export function saveInterviewTranscript(interview: SavedInterview, transcript: Segment[]) {
+  return typedRequest(savedInterviewSchema, `/api/interviews/${interview.id}/transcript`,
+    jsonRequest('PATCH', { transcript, updatedAt: interview.updatedAt }))
+}
+
+export function recordingUrl(id: string) {
+  return `/api/interviews/${id}/audio`
+}
+
+export function archiveDownload(candidateId?: string) {
+  return candidateId ? `/api/export.xlsx?candidate=${candidateId}` : '/api/export.xlsx'
+}
+
+export function requestCoaching(input: CoachingRequest, signal: AbortSignal) {
+  return typedRequest(coachingResultSchema, '/api/coach', jsonRequest('POST', input, signal))
 }

@@ -5,4 +5,5 @@ dist/
 !.env.example
 *.wav
 /.speech/
+/.hr-data/
 coverage/

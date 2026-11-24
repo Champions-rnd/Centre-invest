@@ -14,15 +14,18 @@ type Props = {
   result: InterviewResult
   audioUrl: string
   audioName: string
+  onSave: (transcript: Segment[]) => Promise<void>
 }
 
-export function ReportView({ result, audioUrl, audioName }: Props) {
+export function ReportView({ result, audioUrl, audioName, onSave }: Props) {
   const player = useRef<HTMLAudioElement>(null)
   const messages = useRef(new Map<string, HTMLLIElement>())
   const [transcript, setTranscript] = useState(result.transcript)
   const [draft, setDraft] = useState<Segment[] | null>(null)
   const [active, setActive] = useState('')
   const [audioError, setAudioError] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [saving, setSaving] = useState(false)
   const [retry, setRetry] = useState(0)
   const [coaching, setCoaching] = useState<CoachingState>({ status: 'loading' })
 
@@ -55,10 +58,20 @@ export function ReportView({ result, audioUrl, audioName }: Props) {
     setDraft(current => current?.map((segment, position) => position === index ? { ...segment, ...patch } : segment) ?? null)
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     if (!draft || draft.some(segment => !segment.text.trim())) return
-    setTranscript(draft.map(segment => ({ ...segment, text: segment.text.trim() })))
-    setDraft(null)
+    const updated = draft.map(segment => ({ ...segment, text: segment.text.trim() }))
+    setSaveError('')
+    setSaving(true)
+    try {
+      await onSave(updated)
+      setTranscript(updated)
+      setDraft(null)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Не удалось сохранить расшифровку.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -91,7 +104,7 @@ export function ReportView({ result, audioUrl, audioName }: Props) {
                   }} key={segment.id}>
                   <div className="message-meta">
                     {draft ? (
-                      <select aria-label={`Роль в реплике ${timecode(segment.startMs)}`} value={role}
+                      <select disabled={saving} aria-label={`Роль в реплике ${timecode(segment.startMs)}`} value={role}
                         onChange={event => updateDraft(index, { speaker: event.target.value })}>
                         <option value="">Роль не определена</option>
                         <option value="hr">HR</option>
@@ -104,7 +117,7 @@ export function ReportView({ result, audioUrl, audioName }: Props) {
                     <span className="muted message-end">– {timecode(segment.endMs)}</span>
                   </div>
                   {draft ? (
-                    <textarea rows={2} aria-label={`Текст реплики ${timecode(segment.startMs)}`}
+                    <textarea rows={2} disabled={saving} aria-label={`Текст реплики ${timecode(segment.startMs)}`}
                       value={segment.text} onChange={event => updateDraft(index, { text: event.target.value })} />
                   ) : <p>{segment.text}</p>}
                 </li>
@@ -112,8 +125,11 @@ export function ReportView({ result, audioUrl, audioName }: Props) {
             })}
           </ol>
           {draft && <div className="actions edit-actions">
-            <button type="button" disabled={draft.some(segment => !segment.text.trim())} onClick={saveDraft}>Сохранить и обновить рекомендации</button>
-            <button type="button" className="secondary" onClick={() => setDraft(null)}>Отмена</button>
+            <button type="button" disabled={saving || draft.some(segment => !segment.text.trim())} onClick={() => void saveDraft()}>
+              {saving ? 'Сохраняем…' : 'Сохранить и обновить рекомендации'}
+            </button>
+            <button type="button" className="secondary" disabled={saving} onClick={() => { setDraft(null); setSaveError('') }}>Отмена</button>
+            {saveError && <p role="alert">{saveError}</p>}
           </div>}
         </section>
         <CoachingPanel state={coaching} segments={new Map(transcript.map(segment => [segment.id, segment]))}
