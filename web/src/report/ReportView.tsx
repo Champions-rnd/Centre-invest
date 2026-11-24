@@ -1,11 +1,9 @@
-import { useRef, useState } from 'react'
-import { vacancyCriteria, type InterviewResult, type Segment } from '../../../shared/contracts'
+import { useEffect, useRef, useState } from 'react'
+import type { InterviewResult, Segment, SpeakerRole } from '../../../shared/contracts'
+import { requestCoaching } from '../api'
+import { CoachingPanel, type CoachingState } from './CoachingPanel'
 
-const statusLabels = {
-  supported: 'Подтверждено',
-  partial: 'Есть совпадения',
-  missing: 'Совпадений нет',
-}
+const roleLabels: Record<SpeakerRole, string> = { hr: 'HR', candidate: 'Кандидат', '': 'Роль не определена' }
 
 function timecode(ms: number) {
   const seconds = Math.floor(ms / 1000)
@@ -15,95 +13,111 @@ function timecode(ms: number) {
 type Props = {
   result: InterviewResult
   audioUrl: string
-  audioName?: string
-  busy: boolean
-  onReanalyze: (transcript: Segment[]) => void
+  audioName: string
 }
 
-export function ReportView({ result, audioUrl, audioName, busy, onReanalyze }: Props) {
+export function ReportView({ result, audioUrl, audioName }: Props) {
   const player = useRef<HTMLAudioElement>(null)
-  const [edits, setEdits] = useState<Record<string, string>>({})
+  const messages = useRef(new Map<string, HTMLLIElement>())
+  const [transcript, setTranscript] = useState(result.transcript)
+  const [draft, setDraft] = useState<Segment[] | null>(null)
+  const [active, setActive] = useState('')
   const [audioError, setAudioError] = useState('')
-  const segments = new Map(result.transcript.map(segment => [segment.id, segment]))
-  const criteria = new Map(result.vacancy ? vacancyCriteria(result.vacancy).map(({ id, label }) => [id, label]) : [])
+  const [retry, setRetry] = useState(0)
+  const [coaching, setCoaching] = useState<CoachingState>({ status: 'loading' })
 
-  function timestamp(segment: Segment) {
-    const time = timecode(segment.startMs)
-    if (!audioUrl) return <span className="timestamp">{time}</span>
-
-    return (
-      <button className="timestamp link" type="button" aria-label={`К записи на ${time}`} onClick={() => {
-        if (!player.current) return
-        setAudioError('')
-        player.current.currentTime = segment.startMs / 1000
-        void player.current.play().catch(error => {
-          if (error.name !== 'AbortError') setAudioError('Не удалось воспроизвести запись. Попробуйте запустить её в плеере.')
-        })
-      }}>{time}</button>
+  useEffect(() => {
+    const controller = new AbortController()
+    setCoaching({ status: 'loading' })
+    void requestCoaching({ vacancy: result.vacancy, transcript }, controller.signal).then(
+      next => { if (!controller.signal.aborted) setCoaching({ status: 'ready', result: next }) },
+      error => {
+        if (!controller.signal.aborted) setCoaching({ status: 'error', message: error instanceof Error
+          ? error.message : 'Не удалось подготовить рекомендации.' })
+      },
     )
+    return () => controller.abort()
+  }, [result.vacancy, transcript, retry])
+
+  function play(segment: Segment, reveal = false) {
+    setActive(segment.id)
+    if (reveal) messages.current.get(segment.id)?.scrollIntoView({ block: 'nearest' })
+    const audio = player.current
+    if (!audio) return
+    setAudioError('')
+    audio.currentTime = segment.startMs / 1000
+    void audio.play().catch(error => {
+      if (error.name !== 'AbortError') setAudioError('Не удалось воспроизвести запись. Попробуйте запустить её в плеере.')
+    })
   }
 
-  const updatedTranscript = result.transcript.map(segment => ({
-    ...segment, text: (edits[segment.id] ?? segment.text).trim(),
-  }))
-  const canReanalyze = updatedTranscript.every(segment => segment.text.length > 0)
-    && updatedTranscript.some((segment, index) => segment.text !== result.transcript[index].text)
+  function updateDraft(index: number, patch: Partial<Pick<Segment, 'text' | 'speaker'>>) {
+    setDraft(current => current?.map((segment, position) => position === index ? { ...segment, ...patch } : segment) ?? null)
+  }
+
+  function saveDraft() {
+    if (!draft || draft.some(segment => !segment.text.trim())) return
+    setTranscript(draft.map(segment => ({ ...segment, text: segment.text.trim() })))
+    setDraft(null)
+  }
 
   return (
     <section className="report" aria-labelledby="report-title">
-      <h2 id="report-title" tabIndex={-1}>Разбор интервью</h2>
-      {result.vacancy && <p className="muted report-description">{result.vacancy.description}</p>}
-      {audioUrl && (
-        <div className="panel player">
-          <div className="player-recording">
-            <strong>{audioName ?? 'Запись интервью'}</strong>
-            <p className="muted">Таймкоды отсчитываются от начала WAV</p>
+      <h2 id="report-title" tabIndex={-1}>Расшифровка и рекомендации</h2>
+      {result.vacancy?.description && <p className="muted report-description">{result.vacancy.description}</p>}
+      <div className="panel player">
+        <strong className="player-recording">{audioName}</strong>
+        <audio ref={player} src={audioUrl} controls preload="metadata"
+          onError={() => setAudioError('Браузер не может воспроизвести этот WAV. Расшифровка доступна ниже.')} />
+        {audioError && <p className="error" role="status">{audioError}</p>}
+      </div>
+      <div className="results">
+        <section className="panel transcript-panel" aria-labelledby="dialog-title">
+          <div className="dialog-heading">
+            <div>
+              <h3 id="dialog-title">Диалог</h3>
+              <p className="muted">Роли предположены по тексту. Их можно исправить.</p>
+            </div>
+            {!draft && <button type="button" className="secondary" onClick={() => setDraft(transcript)}>Редактировать</button>}
           </div>
-          <audio ref={player} src={audioUrl} controls preload="metadata"
-            onError={() => setAudioError('Браузер не может воспроизвести этот WAV. Расшифровка доступна ниже.')} />
-          {audioError && <p className="error" role="status">{audioError}</p>}
-        </div>
-      )}
-      <div className={result.vacancy ? 'results' : 'results transcript-only'}>
-        {result.vacancy && <section className="findings">
-          <div><h3>Отчёт по критериям</h3><p className="muted">Поиск по ключевым словам в расшифровке</p></div>
-          {result.report.map(finding => (
-            <article key={finding.criterionId} className="panel finding">
-              <div className="finding-heading">
-                <h4>{criteria.get(finding.criterionId)}</h4>
-                <span className={`status ${finding.status}`}>{statusLabels[finding.status]}</span>
-              </div>
-              <p>{finding.conclusion}</p>
-              {finding.evidenceIds.map(id => {
-                const segment = segments.get(id)
-                return segment && <blockquote key={id}>{timestamp(segment)} {segment.speaker && `${segment.speaker} · `}«{segment.text}»</blockquote>
-              })}
-              {finding.gaps.length > 0 && <><h5>Что неизвестно</h5><ul>{finding.gaps.map((gap, index) => <li key={index}>{gap}</li>)}</ul></>}
-              {finding.nextQuestions.length > 0 && <><h5>Что спросить</h5><ul>{finding.nextQuestions.map((question, index) => <li key={index}>{question}</li>)}</ul></>}
-            </article>
-          ))}
-        </section>}
-        <section className="panel transcript-panel">
-          <h3>Расшифровка</h3>
-          <ul className="transcript">
-            {result.transcript.map(segment => (
-              <li key={segment.id}>
-                <div className="speaker">
-                  {timestamp(segment)} <span className="muted">– {timecode(segment.endMs)}</span>
-                  {segment.speaker && <strong>{segment.speaker}</strong>}
-                </div>
-                <textarea rows={2} aria-label={`Фрагмент с ${timecode(segment.startMs)}`}
-                  value={edits[segment.id] ?? segment.text} disabled={busy}
-                  onChange={event => setEdits({ ...edits, [segment.id]: event.target.value })} />
-              </li>
-            ))}
-          </ul>
-          {result.vacancy && (
-            <button type="button" disabled={busy || !canReanalyze} onClick={() => onReanalyze(updatedTranscript)}>
-              Пересобрать отчёт
-            </button>
-          )}
+          <ol className="dialog-messages" aria-label="Реплики по времени">
+            {(draft ?? transcript).map((segment, index) => {
+              const role: SpeakerRole = segment.speaker === 'hr' || segment.speaker === 'candidate' ? segment.speaker : ''
+              return (
+                <li className="message" data-role={role || 'unknown'} data-active={active === segment.id}
+                  ref={element => {
+                    if (element) messages.current.set(segment.id, element)
+                    else messages.current.delete(segment.id)
+                  }} key={segment.id}>
+                  <div className="message-meta">
+                    {draft ? (
+                      <select aria-label={`Роль в реплике ${timecode(segment.startMs)}`} value={role}
+                        onChange={event => updateDraft(index, { speaker: event.target.value })}>
+                        <option value="">Роль не определена</option>
+                        <option value="hr">HR</option>
+                        <option value="candidate">Кандидат</option>
+                      </select>
+                    ) : <strong>{roleLabels[role]}</strong>}
+                    <button type="button" className="timestamp link" onClick={() => play(segment)}
+                      title={`До ${timecode(segment.endMs)}`}
+                      aria-label={`Воспроизвести с ${timecode(segment.startMs)}`}>{timecode(segment.startMs)}</button>
+                    <span className="muted message-end">– {timecode(segment.endMs)}</span>
+                  </div>
+                  {draft ? (
+                    <textarea rows={2} aria-label={`Текст реплики ${timecode(segment.startMs)}`}
+                      value={segment.text} onChange={event => updateDraft(index, { text: event.target.value })} />
+                  ) : <p>{segment.text}</p>}
+                </li>
+              )
+            })}
+          </ol>
+          {draft && <div className="actions edit-actions">
+            <button type="button" disabled={draft.some(segment => !segment.text.trim())} onClick={saveDraft}>Сохранить и обновить рекомендации</button>
+            <button type="button" className="secondary" onClick={() => setDraft(null)}>Отмена</button>
+          </div>}
         </section>
+        <CoachingPanel state={coaching} segments={new Map(transcript.map(segment => [segment.id, segment]))}
+          onJump={segment => play(segment, true)} onRetry={() => setRetry(value => value + 1)} formatTime={timecode} />
       </div>
     </section>
   )

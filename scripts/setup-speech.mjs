@@ -12,6 +12,12 @@ const whisperBuilds = {
   x64: ['whisper-bin-x64.zip', 'ecca07b277d943e9b9f4712856a144b857271a6b333104e511e1988e80db582b'],
 }
 const runtime = fileURLToPath(new URL('../.speech/', import.meta.url))
+const coachRuntime = join(runtime, 'coach')
+const coachBuilds = {
+  arm64: '272cce4ec53aff079cc32d0362932684b444b08d9f9e34924b9f7ebcae680b9d',
+  x64: 'fdf78a3924fe92ccfb24af58544a6dccbc1feeb0587e77fca9ec3bef6737086c',
+}
+const coachModel = ['qwen2.5-1.5b-instruct-q4_k_m.gguf', 'Qwen/Qwen2.5-1.5B-Instruct-GGUF', '6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e']
 const headers = { 'User-Agent': 'HR-Analytics' }
 const models = [
   ['ggml-base.bin', 'ggerganov/whisper.cpp', '60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe'],
@@ -26,7 +32,7 @@ async function sha256(path) {
 
 async function download(url, path, expected) {
   if (!/^[0-9a-f]{64}$/i.test(expected)) throw new Error('Контрольная сумма недоступна.')
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(10 * 60_000) })
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(30 * 60_000) })
   if (!response.ok || !response.body) throw new Error(`HTTP ${response.status} при загрузке ${url}.`)
   await pipeline(Readable.fromWeb(response.body), createWriteStream(path))
   if (await sha256(path) !== expected.toLowerCase()) throw new Error(`Контрольная сумма ${basename(path)} не совпала.`)
@@ -41,17 +47,17 @@ function entries(archive) {
     .filter(entry => /^(?:[a-zA-Z0-9._-]+\/)*[a-zA-Z0-9._-]+$/u.test(entry) && !entry.split('/').includes('..'))
 }
 
-async function installWhisper(staging, [name, digest]) {
-  if (await access(join(runtime, 'whisper-cli.exe')).then(() => true, () => false)) return
-  console.log('Загрузка Whisper…')
+async function installExecutable(staging, directory, command, name, url, digest) {
+  if (await access(join(directory, command)).then(() => true, () => false)) return
+  console.log(`Загрузка ${command}…`)
   const archive = join(staging, name)
-  await download(`https://github.com/ggml-org/whisper.cpp/releases/download/b5907/${name}`, archive, digest)
+  await download(url, archive, digest)
   const files = entries(archive)
-  const cli = files.find(file => posix.basename(file) === 'whisper-cli.exe')
-  if (!cli) throw new Error('В архиве Whisper не найден whisper-cli.exe.')
+  const cli = files.find(file => posix.basename(file) === command)
+  if (!cli) throw new Error(`В архиве не найден ${command}.`)
   const dlls = files.filter(file => posix.dirname(file) === posix.dirname(cli) && file.endsWith('.dll'))
   tar(['-xf', archive, '-C', staging, ...dlls, cli])
-  for (const file of [...dlls, cli]) await copyFile(join(staging, file), join(runtime, posix.basename(file)))
+  for (const file of [...dlls, cli]) await copyFile(join(staging, file), join(directory, posix.basename(file)))
 }
 
 async function installFfmpeg(staging) {
@@ -74,8 +80,8 @@ async function installFfmpeg(staging) {
   await copyFile(join(staging, entry), target)
 }
 
-async function installModel(staging, [name, repository, digest]) {
-  const target = join(runtime, name)
+async function installModel(staging, directory, [name, repository, digest]) {
+  const target = join(directory, name)
   if (await sha256(target).catch(() => '') === digest) return
   console.log(`Загрузка ${name}…`)
   const path = join(staging, name)
@@ -89,10 +95,21 @@ async function setup() {
   await mkdir(runtime, { recursive: true })
   const staging = await mkdtemp(join(runtime, 'setup-'))
   try {
-    await installWhisper(staging, build)
-    await installFfmpeg(staging)
-    for (const model of models) await installModel(staging, model)
-    console.log('Движок распознавания готов.')
+    if (process.argv.includes('--coach')) {
+      await mkdir(coachRuntime, { recursive: true })
+      const archive = `llama-b12676-bin-win-cpu-${process.arch}.zip`
+      await installExecutable(staging, coachRuntime, 'llama-server.exe', archive,
+        `https://github.com/ggml-org/llama.cpp/releases/download/b12676/${archive}`, coachBuilds[process.arch])
+      await installModel(staging, coachRuntime, coachModel)
+      console.log('Локальная модель рекомендаций готова.')
+    } else {
+      const [archive, digest] = build
+      await installExecutable(staging, runtime, 'whisper-cli.exe', archive,
+        `https://github.com/ggml-org/whisper.cpp/releases/download/b5907/${archive}`, digest)
+      await installFfmpeg(staging)
+      for (const model of models) await installModel(staging, runtime, model)
+      console.log('Движок распознавания готов.')
+    }
   } finally {
     await rm(staging, { recursive: true, force: true })
   }

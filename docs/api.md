@@ -7,10 +7,13 @@
 | `GET /api/health` | — | `{ "status": "ok" }` |
 | `POST /api/interviews` | `multipart/form-data` с файлом `audio` и необязательной строкой JSON `vacancy` | `InterviewResult` |
 | `POST /api/analyze` | JSON `{ vacancy, transcript }` | `InterviewResult` с пересобранным отчётом |
+| `POST /api/coach` | JSON `{ vacancy, transcript }`, где `vacancy` может быть `null` | `{ source, recommendations }` |
 
-Объект `vacancy` содержит `description` и массив `criteria` из 1–20 строк. Если поле на загрузке отсутствует, сервер возвращает `vacancy: null` и пустой массив `report`.
+Объект `vacancy` содержит `description` и массив `criteria` максимум из 20 строк. Достаточно заполнить описание или одну тему. Если поле на загрузке отсутствует, сервер возвращает `vacancy: null` и пустой массив `report`.
 
-Каждый фрагмент расшифровки содержит `{ id, speaker, startMs, endMs, text }`. Поле `speaker` пустое, когда говорящий неизвестен. При передаче исправленного текста сохраняйте ID и таймкоды.
+Каждый фрагмент расшифровки содержит `{ id, speaker, startMs, endMs, text }`. Поле `speaker` содержит предположенную роль `hr`, `candidate` или пустую строку. При правке текста и роли сохраняйте ID и таймкоды.
+
+В ответе `/api/coach` поле `source` показывает источник подсказок. Возможные значения — `local` для локальной модели, `configured` для настроенного агента и `rules` для правил. Поле `ruleSupplement` отмечает, что часть подсказок добавлена правилами. У каждой рекомендации есть `kind` (`unasked`, `rephrase` или `clarify`), вопрос, причина и `evidenceIds` для перехода к исходной реплике.
 
 Результат содержит `mode: "live"`, `vacancy`, `transcript` и `report`. В элементе отчёта поля `criterionId`, `status`, `conclusion`, `evidenceIds`, `gaps` и `nextQuestions`. Текст цитаты берётся из `transcript` по ID. Текущий поиск по ключевым словам возвращает `partial` при совпадении и `missing` при его отсутствии.
 

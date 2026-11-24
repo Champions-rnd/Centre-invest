@@ -3,6 +3,7 @@ import {
   type AnalysisRequest, type InterviewResult, type Vacancy,
 } from '../shared/contracts'
 import { analyzeInterview } from './analysis'
+import { suggestSpeakerRoles } from './analysis/roles'
 import { ApiError } from './errors'
 import { transcribeWav } from './stt'
 
@@ -37,7 +38,8 @@ export async function processInterview(
   if (!parsed.success) {
     throw new ApiError(502, 'INVALID_TRANSCRIPT', 'Распознавание вернуло расшифровку в неверном формате.')
   }
+  const transcript = suggestSpeakerRoles(parsed.data)
   return vacancy
-    ? buildReport({ vacancy, transcript: parsed.data })
-    : { mode: 'live', vacancy: null, transcript: parsed.data, report: [] }
+    ? buildReport({ vacancy, transcript })
+    : { mode: 'live', vacancy: null, transcript, report: [] }
 }

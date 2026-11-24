@@ -3,7 +3,8 @@ import { loadEnvFile } from 'node:process'
 import { resolve } from 'node:path'
 import express, { type ErrorRequestHandler } from 'express'
 import multer from 'multer'
-import { analysisRequestSchema, MAX_AUDIO_MB, vacancySchema } from '../shared/contracts'
+import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_MB, vacancySchema } from '../shared/contracts'
+import { coachInterview } from './analysis/coach'
 import { ApiError } from './errors'
 import { buildReport, processInterview } from './report'
 
@@ -44,6 +45,15 @@ app.post('/api/analyze', express.json({ limit: '5mb' }), async (request, respons
     throw new ApiError(400, 'INVALID_INPUT', 'Проверьте вакансию и исправленную расшифровку.')
   }
   response.json(await buildReport(input.data))
+})
+
+app.post('/api/coach', express.json({ limit: '5mb' }), async (request, response) => {
+  const input = coachingRequestSchema.safeParse(request.body)
+  if (!input.success) throw new ApiError(400, 'INVALID_INPUT', 'Проверьте расшифровку и контекст вакансии.')
+  const controller = new AbortController()
+  response.once('close', () => { if (!response.writableEnded) controller.abort() })
+  const result = await coachInterview(input.data, controller.signal)
+  if (!controller.signal.aborted) response.json(result)
 })
 
 app.use('/api', (_request, _response, next) =>

@@ -5,7 +5,7 @@ const commonWords = new Set([
   'with', 'about', 'using', 'their', 'experience', 'skills', 'knowledge', 'ability',
 ])
 
-function words(text: string) {
+export function words(text: string) {
   return new Set((text.toLowerCase().replaceAll('ё', 'е').match(/[\p{L}\p{N}]+/gu) ?? [])
     .filter(word => word.length >= 3 && !commonWords.has(word))
     .map(word => /^[а-я]{6,}$/u.test(word) ? word.slice(0, 5) : word))

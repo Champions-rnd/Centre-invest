@@ -27,7 +27,7 @@ export function InterviewForm({ busy, onSubmit }: Props) {
       return
     }
     if (!vacancy.success) {
-      setError('Для отчёта добавьте описание вакансии и от 1 до 20 критериев, по одному на строку.')
+      setError('Тема может содержать до 300 символов. Укажите не больше 20 тем, по одной на строку.')
       return
     }
     setError('')
@@ -37,10 +37,10 @@ export function InterviewForm({ busy, onSubmit }: Props) {
   return (
     <form id="intake" className="intake" onSubmit={handleSubmit}>
       <div className="section-head">
-        <div><h2>Новый разбор</h2><p className="muted">Загрузите WAV. Для отчёта по вакансии заполните описание и критерии.</p></div>
+        <div><h1>Разбор собеседования</h1><p className="muted">Загрузите запись, чтобы получить расшифровку и вопросы для следующей встречи.</p></div>
       </div>
       <fieldset disabled={busy}>
-        <div className="input-grid">
+        <div className="intake-panels">
           <div className="panel">
             <div className="card-heading"><span className="tile" aria-hidden="true">♫</span><h3>Запись интервью</h3></div>
             <label className={dragging ? 'drop dragging' : 'drop'}
@@ -62,13 +62,18 @@ export function InterviewForm({ busy, onSubmit }: Props) {
               <span className="muted">WAV до {MAX_AUDIO_MB} МБ и 60 минут</span>
             </label>
           </div>
-          <div className="panel vacancy-fields">
-            <div className="card-heading"><span className="tile" aria-hidden="true">≡</span><h3><label htmlFor="description">Описание вакансии</label></h3></div>
-            <textarea id="description" name="description" placeholder="Кратко опишите роль и задачи" maxLength={12000} rows={3} />
-            <label>Критерии вакансии, по одному на строку
-              <textarea name="criteria" placeholder={'Например, работа с клиентами\nПодготовка отчётности'} rows={3} />
-            </label>
-          </div>
+          <details className="panel vacancy-fields">
+            <summary>Добавить контекст вакансии <span className="muted">Необязательно</span></summary>
+            <p className="muted">Укажите роль или важные темы, чтобы получить более конкретные вопросы.</p>
+            <div className="vacancy-grid">
+              <label>Описание вакансии
+                <textarea name="description" placeholder="Роль и основные задачи" maxLength={12000} rows={3} />
+              </label>
+              <label>Что важно проверить
+                <textarea name="criteria" placeholder={'По одной теме на строку\nНапример, работа с обращениями клиентов'} rows={3} />
+              </label>
+            </div>
+          </details>
         </div>
         <div className="actions">
           <button type="submit">Расшифровать запись</button>
