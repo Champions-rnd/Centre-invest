@@ -153,8 +153,8 @@ function App() {
     <div className="studio">
       <aside className="studio-sidebar">
         <button type="button" className="studio-brand" disabled={busy} onClick={goHome}>
-          <span className="studio-mark" aria-hidden="true">H</span>
-          <span>HR-аналитика<small>Центр-инвест</small></span>
+          <img src={`${import.meta.env.BASE_URL}brand/centrinvest-logo.svg`} alt="Банк Центр-инвест" width={140} height={30} />
+          <span>HR-аналитика</span>
         </button>
         <nav className="studio-navigation" aria-label="Основное меню">
           <button type="button" disabled={busy} onClick={goHome} aria-current={screen.view === 'candidates' ? 'page' : undefined}>Кандидаты</button>
