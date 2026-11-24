@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { candidateCreateSchema, candidateStatusSchema, candidateTargetSchema, transcriptUpdateSchema } from '../shared/archive'
 import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_MB, vacancySchema } from '../shared/contracts'
 import { coachInterview } from './analysis/coach'
+import { buildCandidateOverview } from './analysis/candidate-overview'
 import { reviewRoles } from './analysis/review-roles'
 import { openArchive } from './archive'
 import { ApiError } from './errors'
@@ -39,6 +40,13 @@ app.post('/api/candidates', json, (request, response) => {
 })
 app.get('/api/interviews', (_request, response) => response.json(archive.listInterviews()))
 app.get('/api/candidates/:id', (request, response) => response.json(archive.candidate(parseId(request.params.id))))
+app.post('/api/candidates/:id/overview', async (request, response) => {
+  const { id } = archive.candidate(parseId(request.params.id))
+  const controller = new AbortController()
+  response.once('close', () => { if (!response.writableEnded) controller.abort() })
+  const overview = await buildCandidateOverview([...archive.exportInterviews(id)], controller.signal)
+  if (!controller.signal.aborted) response.json(overview)
+})
 app.patch('/api/candidates/:id/status', json, (request, response) => {
   const status = candidateStatusSchema.safeParse(request.body?.status)
   if (!status.success) throw new ApiError(400, 'INVALID_STATUS', 'Выберите статус кандидата.')

@@ -5,18 +5,20 @@ import { archiveDownload, recordingUrl } from '../api'
 import { ReportView } from '../report/ReportView'
 import { formatCount, formatDate } from './format'
 import { InterviewSort, sortInterviews, type InterviewOrder } from './InterviewSort'
+import { CandidateOverview } from './CandidateOverview'
 
 type Props = {
   candidate: CandidateDetail
   interview?: SavedInterview
+  seek?: { ms: number }
   busy: boolean
   onAdd: () => void
-  onInterview: (id: string) => void
+  onInterview: (id: string, startMs?: number) => void
   onStatus: (status: CandidateStatus) => void
   onTranscript: (interview: SavedInterview, transcript: Segment[]) => Promise<Segment[]>
 }
 
-export function CandidateDossier({ candidate, interview, busy, onAdd, onInterview, onStatus, onTranscript }: Props) {
+export function CandidateDossier({ candidate, interview, seek, busy, onAdd, onInterview, onStatus, onTranscript }: Props) {
   const [sort, setSort] = useState<InterviewOrder>('recent')
   return (
     <>
@@ -57,8 +59,11 @@ export function CandidateDossier({ candidate, interview, busy, onAdd, onIntervie
           ))}
         </ul> : <p className="muted">К этому кандидату пока не прикреплено ни одного интервью.</p>}
       </section>
+      {candidate.interviews.length > 0 && <CandidateOverview
+        key={candidate.interviews.map(item => item.id + item.updatedAt).join(';')} id={candidate.id}
+        busy={busy} openInterview={onInterview} />}
       {interview && <ReportView key={interview.id} interviewId={interview.id} result={interview.result} audioUrl={recordingUrl(interview.id)}
-        audioName={interview.fileName} onSave={transcript => onTranscript(interview, transcript)} />}
+        audioName={interview.fileName} seek={seek} onSave={transcript => onTranscript(interview, transcript)} />}
     </>
   )
 }

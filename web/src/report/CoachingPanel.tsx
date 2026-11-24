@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { CoachingResult, Recommendation, Segment } from '../../../shared/contracts'
 
 const sections: { kind: Recommendation['kind']; title: string }[] = [
@@ -20,6 +21,17 @@ type Props = {
 }
 
 export function CoachingPanel({ state, segments, onJump, onRetry, formatTime }: Props) {
+  const [copyStatus, setCopyStatus] = useState('')
+
+  async function copyQuestions(questions: string[]) {
+    try {
+      await navigator.clipboard.writeText(questions.join('\n'))
+      setCopyStatus('Вопросы скопированы.')
+    } catch {
+      setCopyStatus('Не удалось скопировать вопросы.')
+    }
+  }
+
   return (
     <aside className="panel coaching" aria-labelledby="coaching-title" aria-busy={state.status === 'loading'}>
       <h3 id="coaching-title">Рекомендации для HR</h3>
@@ -36,6 +48,9 @@ export function CoachingPanel({ state, segments, onJump, onRetry, formatTime }: 
             {state.result.ruleSupplement && ' и дополнено правилами анализа диалога'}
           </p>
           {!state.result.recommendations.length && <p>По этой расшифровке нет дополнительных вопросов.</p>}
+          {state.result.recommendations.length > 0 && <button type="button" className="secondary copy-questions"
+            onClick={() => void copyQuestions(state.result.recommendations.map(item => item.question))}>Скопировать вопросы</button>}
+          {copyStatus && <p className="muted" role="status">{copyStatus}</p>}
           {sections.map(({ kind, title }) => {
             const items = state.result.recommendations.filter(item => item.kind === kind)
             if (!items.length) return null

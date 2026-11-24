@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { resultSchema, transcriptSchema } from './contracts'
+import { recommendationSchema, resultSchema, transcriptSchema } from './contracts'
 
 export const candidateStatusSchema = z.enum(['new', 'review', 'verified'])
 export const candidateStatuses = {
@@ -41,6 +41,10 @@ export const candidateDetailSchema = candidateSchema.extend({ interviews: z.arra
 export const archiveInterviewSchema = interviewSummarySchema.extend({ candidate: candidateSchema })
 export const savedInterviewSchema = interviewSummarySchema.extend({ candidateId: z.uuid(), result: resultSchema })
 export const transcriptUpdateSchema = z.object({ transcript: transcriptSchema, updatedAt: z.string() })
+export const candidateOverviewSchema = z.object({
+  recommendations: z.array(recommendationSchema),
+  sources: z.array(z.object({ id: z.string(), interviewId: z.uuid(), fileName: z.string(), startMs: z.number() })),
+})
 
 export type Candidate = z.infer<typeof candidateSchema>
 export type CandidateDetail = z.infer<typeof candidateDetailSchema>
@@ -50,3 +54,4 @@ export type CandidateProfile = z.infer<typeof candidateProfileSchema>
 export type SavedInterview = z.infer<typeof savedInterviewSchema>
 export type InterviewSummary = z.infer<typeof interviewSummarySchema>
 export type ArchiveInterview = z.infer<typeof archiveInterviewSchema>
+export type CandidateOverview = z.infer<typeof candidateOverviewSchema>

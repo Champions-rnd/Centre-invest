@@ -13,26 +13,28 @@ import { Dashboard } from './archive/Dashboard'
 import { InterviewForm } from './intake/InterviewForm'
 import './styles.css'
 import './archive/styles.css'
+import './workspace.css'
 
 type Screen =
+  | { view: 'candidates' }
   | { view: 'dashboard' }
   | { view: 'new-candidate' }
   | { view: 'upload'; attachTo?: string }
-  | { view: 'dossier'; candidate: CandidateDetail; interview?: SavedInterview }
+  | { view: 'dossier'; candidate: CandidateDetail; interview?: SavedInterview; seek?: { ms: number } }
 
 function message(error: unknown) {
   return error instanceof Error ? error.message : 'Не удалось выполнить запрос.'
 }
 
 function App() {
-  const [screen, setScreen] = useState<Screen>({ view: 'dashboard' })
+  const [screen, setScreen] = useState<Screen>({ view: 'candidates' })
   const [archive, setArchive] = useState<ArchiveInterview[] | null>(null)
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [uploadCandidateId, setUploadCandidateId] = useState('')
   const [pending, setPending] = useState('')
   const [error, setError] = useState('')
   const busy = Boolean(pending)
-  const heading = screen.view === 'dashboard' ? 'archive-title' : screen.view === 'upload' ? 'intake-title'
+  const heading = screen.view === 'candidates' ? 'candidate-directory-title' : screen.view === 'dashboard' ? 'archive-title' : screen.view === 'upload' ? 'intake-title'
     : screen.view === 'new-candidate' ? 'candidate-create-title'
     : screen.interview ? 'report-title' : 'dossier-title'
 
@@ -69,9 +71,9 @@ function App() {
   }
 
   function goHome() {
-    navigate({ view: 'dashboard' })
-    if (screen.view === 'dashboard') {
-      document.getElementById('archive-title')?.focus({ preventScroll: true })
+    navigate({ view: 'candidates' })
+    if (screen.view === 'candidates') {
+      document.getElementById('candidate-directory-title')?.focus({ preventScroll: true })
       window.scrollTo(0, 0)
     }
   }
@@ -102,10 +104,10 @@ function App() {
     })
   }
 
-  function openInterview(candidate: CandidateDetail, id: string) {
+  function openInterview(candidate: CandidateDetail, id: string, startMs?: number) {
     void run('Открываем интервью…', async () => {
       const interview = await loadInterview(id)
-      setScreen({ view: 'dossier', candidate, interview })
+      setScreen({ view: 'dossier', candidate, interview, seek: startMs === undefined ? undefined : { ms: startMs } })
       requestAnimationFrame(() => document.getElementById('report-title')?.focus())
     })
   }
@@ -135,59 +137,73 @@ function App() {
 
   async function updateTranscript(interview: SavedInterview, transcript: Segment[]) {
     const updated = await saveInterviewTranscript(interview, transcript)
-    setScreen(current => current.view === 'dossier' && current.interview?.id === updated.id ? { ...current, interview: updated } : current)
+    setScreen(current => current.view === 'dossier' && current.candidate.id === updated.candidateId ? {
+      ...current,
+      interview: current.interview?.id === updated.id ? updated : current.interview,
+      candidate: {
+        ...current.candidate,
+        interviews: current.candidate.interviews.map(item => item.id === updated.id
+          ? { ...item, updatedAt: updated.updatedAt } : item),
+      },
+    } : current)
     return updated.result.transcript
   }
 
   return (
-    <>
-      <header className="site-header">
-        <div className="frame header-inner">
-          <button className="brand brand-button" type="button" disabled={busy}
-            onClick={goHome} aria-label="Центр-инвест, архив кандидатов">
-            <img src={`${import.meta.env.BASE_URL}brand/centrinvest-logo.svg`} alt="" width={140} height={30} />
-          </button>
-          <div className="header-actions">
-            {screen.view !== 'dashboard' && <button className="secondary" disabled={busy} type="button"
-              onClick={goHome}>На главную</button>}
-            {screen.view !== 'upload' && <a className="action-link" href={archiveDownload()} download>Выгрузить Excel</a>}
-            {screen.view !== 'upload' && screen.view !== 'new-candidate' && <button disabled={busy} type="button"
-              onClick={() => navigate({ view: 'new-candidate' })}>+ Добавить кандидата</button>}
+    <div className="studio">
+      <aside className="studio-sidebar">
+        <button type="button" className="studio-brand" disabled={busy} onClick={goHome}>
+          <span className="studio-mark" aria-hidden="true">H</span>
+          <span>HR-аналитика<small>Центр-инвест</small></span>
+        </button>
+        <nav className="studio-navigation" aria-label="Основное меню">
+          <button type="button" disabled={busy} onClick={goHome} aria-current={screen.view === 'candidates' ? 'page' : undefined}>Кандидаты</button>
+          <button type="button" disabled={busy} onClick={() => navigate({ view: 'dashboard' })}
+            aria-current={screen.view === 'dashboard' ? 'page' : undefined}>Интервью</button>
+          <button type="button" disabled={busy} onClick={() => openUpload()}
+            aria-current={screen.view === 'upload' ? 'page' : undefined}>Загрузка WAV</button>
+        </nav>
+        <a className="studio-link" href="https://www.centrinvest.ru/">Сайт банка «Центр-инвест»</a>
+      </aside>
+      <div className="studio-content">
+        <header className="studio-bar">
+          <div className="studio-context">
+            {(screen.view === 'new-candidate' || screen.view === 'dossier') &&
+              <button className="secondary" type="button" disabled={busy} onClick={goHome}>← К списку кандидатов</button>}
+            {(screen.view === 'candidates' || screen.view === 'dashboard' || screen.view === 'upload') &&
+              <span>Подбор персонала</span>}
           </div>
-        </div>
-      </header>
-      <main className="frame">
-        {pending && <p className="panel archive-feedback" role="status">{pending}</p>}
-        {error && <div className="panel archive-feedback">
-          <p role="alert">{error}</p>
-          {(screen.view === 'dashboard' || screen.view === 'new-candidate') && (!archive || !candidates) &&
-            <button type="button" className="secondary" onClick={refresh}>Обновить архив</button>}
-        </div>}
-        <div hidden={screen.view !== 'dashboard'}>{archive
-          ? <Dashboard interviews={archive} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'new-candidate' })} />
-          : !error && <p className="archive-feedback" role="status">Загружаем архив…</p>}</div>
-        <div className="upload-screen" hidden={screen.view !== 'upload'}>
-          <InterviewForm candidates={candidates ?? []} candidateId={uploadCandidateId}
-            attachTo={screen.view === 'upload' ? screen.attachTo : undefined} onCandidate={setUploadCandidateId}
-            onSaved={interviewSaved} onOpen={openCandidate} />
-        </div>
-        {screen.view === 'new-candidate' && <>
-          <CandidateProfileForm busy={busy} onSave={saveCandidate} />
-          {!!candidates?.length && <CandidateDirectory candidates={candidates} busy={busy}
-            onOpen={openCandidate} onBatch={() => openUpload()} />}
-        </>}
-        {screen.view === 'dossier' && <CandidateDossier candidate={screen.candidate} interview={screen.interview} busy={busy}
-          onAdd={() => openUpload(screen.candidate.id)}
-          onInterview={id => openInterview(screen.candidate, id)}
-          onStatus={status => updateStatus(screen.candidate, status)}
-          onTranscript={updateTranscript} />}
-      </main>
-      <footer className="site-footer">
-        <div className="frame footer-inner">
-          <span>HR-аналитика интервью</span><a href="https://www.centrinvest.ru/">Сайт банка «Центр-инвест»</a>
-        </div>
-      </footer>
-    </>
+          {(screen.view === 'candidates' || screen.view === 'dashboard') &&
+            <a className="action-link" href={archiveDownload()} download>Экспорт Excel</a>}
+        </header>
+        <main className="frame">
+          {pending && <p className="panel archive-feedback" role="status">{pending}</p>}
+          {error && <div className="panel archive-feedback">
+            <p role="alert">{error}</p>
+            {(screen.view === 'dashboard' || screen.view === 'candidates') && (!archive || !candidates) &&
+              <button type="button" className="secondary" onClick={refresh}>Обновить архив</button>}
+          </div>}
+          <div hidden={screen.view !== 'candidates'}>{candidates
+            ? <CandidateDirectory candidates={candidates} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'new-candidate' })} />
+            : !error && <p role="status">Загружаем кандидатов…</p>}</div>
+          <div hidden={screen.view !== 'dashboard'}>{archive
+            ? <Dashboard interviews={archive} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'new-candidate' })} />
+            : !error && <p className="archive-feedback" role="status">Загружаем архив…</p>}</div>
+          <div className="upload-screen" hidden={screen.view !== 'upload'}>
+            <InterviewForm candidates={candidates ?? []} candidateId={uploadCandidateId}
+              attachTo={screen.view === 'upload' ? screen.attachTo : undefined} onCandidate={setUploadCandidateId}
+              onSaved={interviewSaved} onOpen={openCandidate} />
+          </div>
+          {screen.view === 'new-candidate' && <CandidateProfileForm busy={busy} onSave={saveCandidate} />}
+          {screen.view === 'dossier' && <CandidateDossier candidate={screen.candidate} interview={screen.interview}
+            seek={screen.seek} busy={busy}
+            onAdd={() => openUpload(screen.candidate.id)}
+            onInterview={(id, startMs) => openInterview(screen.candidate, id, startMs)}
+            onStatus={status => updateStatus(screen.candidate, status)}
+            onTranscript={updateTranscript} />}
+        </main>
+      </div>
+    </div>
   )
 }
 

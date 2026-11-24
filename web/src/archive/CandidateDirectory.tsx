@@ -1,59 +1,101 @@
 import { useState } from 'react'
-import { candidateStatuses, type Candidate } from '../../../shared/archive'
+import { candidateStatuses, type Candidate, type CandidateStatus } from '../../../shared/archive'
 import { formatDate } from './format'
 
 type Props = {
   candidates: Candidate[]
   busy: boolean
   onOpen: (id: string) => void
-  onBatch: () => void
+  onAdd: () => void
 }
 
-export function CandidateDirectory({ candidates, busy, onOpen, onBatch }: Props) {
+const byName = new Intl.Collator('ru')
+const sortLabels = { recent: 'По последнему интервью', interviews: 'По числу интервью', name: 'По имени' } as const
+type CandidateOrder = keyof typeof sortLabels
+
+export function initials(name: string) {
+  return name.split(/\s+/u).slice(0, 2).map(part => Array.from(part)[0]).join('').toLocaleUpperCase('ru')
+}
+
+export function CandidateDirectory({ candidates, busy, onOpen, onAdd }: Props) {
   const [query, setQuery] = useState('')
+  const [specialty, setSpecialty] = useState('')
+  const [status, setStatus] = useState('')
+  const [sort, setSort] = useState<CandidateOrder>('recent')
   const search = query.trim().toLocaleLowerCase('ru')
-  const matches = candidates.filter(candidate => [candidate.name, candidate.specialty, candidate.notes]
-    .some(value => value.toLocaleLowerCase('ru').includes(search)))
+  const groups = new Map<string, number>()
+  for (const candidate of candidates) groups.set(candidate.specialty, (groups.get(candidate.specialty) ?? 0) + 1)
+  const specialties = [...groups.entries()].sort(([a], [b]) => byName.compare(a, b))
+  const matches = candidates.filter(candidate =>
+    (!specialty || candidate.specialty === specialty)
+    && (!status || (status === 'no-interview' ? !candidate.interviewCount : candidate.status === status))
+    && [candidate.name, candidate.specialty, candidate.notes].some(value => value.toLocaleLowerCase('ru').includes(search)))
+  matches.sort((a, b) => {
+    const names = byName.compare(a.name, b.name)
+    if (sort === 'name') return names
+    if (sort === 'interviews') return b.interviewCount - a.interviewCount || names
+    return (b.latestAt ?? '').localeCompare(a.latestAt ?? '') || names
+  })
+
+  const totalInterviews = candidates.reduce((total, candidate) => total + candidate.interviewCount, 0)
+  const needsReview = candidates.filter(candidate => candidate.status === 'review').length
 
   return (
-    <section className="interview-dashboard" aria-labelledby="candidate-directory-title">
-      <div className="list-heading">
+    <section aria-labelledby="candidate-directory-title" className="workspace-directory">
+      <header className="directory-heading">
         <div>
-          <h2 id="candidate-directory-title">Личные дела</h2>
-          <p className="muted">Показано {matches.length} из {candidates.length}</p>
+          <h1 id="candidate-directory-title" tabIndex={-1}>Кандидаты</h1>
+          <p>Личные дела, записи интервью и результаты сверки.</p>
         </div>
-        <div className="directory-actions">
-          <label className="filter-search directory-search">Поиск
-            <input type="search" placeholder="ФИО или специальность" value={query} onChange={event => setQuery(event.target.value)} />
-          </label>
-          <button className="secondary" type="button" disabled={busy} onClick={onBatch}>Пакетная загрузка</button>
+        <button type="button" disabled={busy} onClick={onAdd}>+ Добавить кандидата</button>
+      </header>
+      <dl className="workspace-metrics">
+        <div><dt>Кандидаты</dt><dd>{candidates.length}</dd></div>
+        <div><dt>Интервью</dt><dd>{totalInterviews}</dd></div>
+        <div><dt>Требуют сверки</dt><dd>{needsReview}</dd></div>
+      </dl>
+      <section className="panel workspace-roster" aria-labelledby="roster-title">
+        <div className="roster-heading">
+          <h2 id="roster-title">Личные дела</h2>
+          {candidates.length > 0 && <p className="muted">Показано {matches.length} из {candidates.length}</p>}
         </div>
-      </div>
-      {matches.length ? <ul className="candidate-grid">
-        {matches.map(candidate => (
-          <li key={candidate.id} className="panel candidate-card">
-            <div className="candidate-card-top">
-              <span className="specialty-label">{candidate.specialty}</span>
-              <span className="candidate-status" data-status={candidate.status}>{candidateStatuses[candidate.status]}</span>
-            </div>
-            <h3 className="interview-card-title">{candidate.name}</h3>
-            {(candidate.experience || candidate.salary) && <p className="muted candidate-meta">
-              {[candidate.experience && `Опыт: ${candidate.experience}`, candidate.salary && `Ожидания: ${candidate.salary}`].filter(Boolean).join(' · ')}
-            </p>}
-            <div className="candidate-card-bottom">
-              <div><strong>{candidate.interviewCount ? `${candidate.interviewCount} интервью` : 'Без интервью'}</strong>
-                {candidate.latestAt && <small className="muted">{formatDate(candidate.latestAt)}</small>}</div>
-              <div className="interview-card-actions">
-                <button className="secondary" type="button" disabled={busy} aria-label={`Открыть личное дело: ${candidate.name}`}
-                  onClick={() => onOpen(candidate.id)}>Личное дело</button>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul> : <div className="panel archive-empty">
-        <h3>Кандидаты не найдены</h3>
-        <button className="secondary" type="button" onClick={() => setQuery('')}>Сбросить поиск</button>
-      </div>}
+        {!!candidates.length && <div className="roster-tools">
+          <label>Поиск<input type="search" placeholder="Имя, специальность или заметка" value={query} onChange={event => setQuery(event.target.value)} /></label>
+          <label>Специальность<select aria-label="Специальность" value={specialty} onChange={event => setSpecialty(event.target.value)}>
+            <option value="">Все специальности</option>
+            {specialties.map(([name, count]) => <option value={name} key={name}>{name} ({count})</option>)}
+          </select></label>
+          <label>Статус<select aria-label="Статус" value={status} onChange={event => setStatus(event.target.value)}>
+            <option value="">Все статусы</option>
+            {(Object.entries(candidateStatuses) as [CandidateStatus, string][]).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            <option value="no-interview">Без интервью</option>
+          </select></label>
+          <label>Сортировка<select aria-label="Сортировка" value={sort} onChange={event => setSort(event.target.value as CandidateOrder)}>
+            {Object.entries(sortLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select></label>
+        </div>}
+        {matches.length ? <table className="roster-table">
+          <thead><tr><th scope="col">Кандидат</th><th scope="col">Статус</th><th scope="col">Интервью</th><th scope="col">Действие</th></tr></thead>
+          <tbody>{matches.map(candidate => (
+            <tr key={candidate.id}>
+              <th scope="row">
+                <div className="roster-person">
+                  <span className="roster-avatar" aria-hidden="true">{initials(candidate.name)}</span>
+                  <span><strong>{candidate.name}</strong><small>{candidate.specialty}</small></span>
+                </div>
+              </th>
+              <td><span className="candidate-status" data-status={candidate.status}>{candidateStatuses[candidate.status]}</span></td>
+              <td><strong>{candidate.interviewCount}</strong><small>{candidate.latestAt ? formatDate(candidate.latestAt) : 'Записей пока нет'}</small></td>
+              <td><button className="secondary roster-open" disabled={busy} type="button"
+                aria-label={`Открыть личное дело: ${candidate.name}`} onClick={() => onOpen(candidate.id)}>Открыть <span aria-hidden="true">›</span></button></td>
+            </tr>
+          ))}</tbody>
+        </table> : <div className="workspace-empty">
+          <h3>{candidates.length ? 'Ничего не найдено' : 'Пока нет кандидатов'}</h3>
+          <p className="muted">{candidates.length ? 'Проверьте запрос или фильтры.' : 'Добавьте кандидата, чтобы создать личное дело и прикрепить запись.'}</p>
+          {candidates.length > 0 && <button className="secondary" type="button" onClick={() => { setQuery(''); setSpecialty(''); setStatus('') }}>Сбросить фильтры</button>}
+        </div>}
+      </section>
     </section>
   )
 }

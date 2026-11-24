@@ -25,10 +25,11 @@ type Props = {
   result: InterviewResult
   audioUrl: string
   audioName: string
+  seek?: { ms: number }
   onSave: (transcript: Segment[]) => Promise<Segment[]>
 }
 
-export function ReportView({ interviewId, result, audioUrl, audioName, onSave }: Props) {
+export function ReportView({ interviewId, result, audioUrl, audioName, seek, onSave }: Props) {
   const player = useRef<HTMLAudioElement>(null)
   const messages = useRef(new Map<string, HTMLLIElement>())
   const roleRequest = useRef<AbortController | null>(null)
@@ -48,6 +49,9 @@ export function ReportView({ interviewId, result, audioUrl, audioName, onSave }:
   const uncertain = transcript.filter(segment => !roleOf(segment)).length
 
   useEffect(() => () => roleRequest.current?.abort(), [])
+  useEffect(() => {
+    if (seek && player.current?.readyState) player.current.currentTime = seek.ms / 1000
+  }, [seek])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -127,10 +131,19 @@ export function ReportView({ interviewId, result, audioUrl, audioName, onSave }:
       {result.vacancy?.description && <p className="muted report-description">{result.vacancy.description}</p>}
       <div className="panel player">
         <strong className="player-recording">{audioName}</strong>
-        <audio ref={player} src={audioUrl} controls preload="metadata" onTimeUpdate={event => {
+        <audio ref={player} src={audioUrl} controls preload="metadata" onLoadedMetadata={event => {
+          if (seek) event.currentTarget.currentTime = seek.ms / 1000
+        }} onTimeUpdate={event => {
           const ms = event.currentTarget.currentTime * 1000
           setActive(transcript.find(segment => segment.startMs <= ms && ms < segment.endMs)?.id ?? '')
         }} onError={() => setAudioError('Браузер не может воспроизвести этот WAV. Расшифровка доступна ниже.')} />
+        <label className="playback-rate">Скорость
+          <select aria-label="Скорость" defaultValue="1" onChange={event => {
+            if (player.current) player.current.playbackRate = Number(event.target.value)
+          }}>
+            {[0.75, 1, 1.25, 1.5, 2].map(rate => <option key={rate} value={rate}>{rate.toLocaleString('ru')}×</option>)}
+          </select>
+        </label>
         {audioError && <p className="error" role="status">{audioError}</p>}
       </div>
       {coaching.status === 'ready' && <AnswerAssessment observations={coaching.result.observations}

@@ -1,0 +1,164 @@
+:root {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #17283d;
+  background: #f1f4f8;
+  --green: #08746f;
+  --green-dark: #075d5a;
+  --muted: #526378;
+  --line: #dce4ee;
+  --soft: #e8f4f2;
+}
+
+.studio { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100vh; align-items: start; }
+.studio-sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 24px 14px 18px;
+  background: #131f34;
+  color: #edf4fc;
+}
+.studio-brand, .studio-brand:hover:enabled {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 4px 7px;
+  text-align: left;
+  font-size: .91rem;
+  background: none;
+  border: 0;
+}
+.studio-brand small { display: block; color: #a9b9cd; font-size: .76rem; font-weight: 500; }
+.studio-mark {
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  width: 36px;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  background: #9fe8da;
+  color: #122c37;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.studio-navigation { display: grid; gap: 5px; margin-top: 32px; }
+.studio-navigation button {
+  min-height: 39px;
+  padding: 7px 11px;
+  border-color: transparent;
+  background: transparent;
+  color: #d6e1ef;
+  text-align: left;
+  font-size: .91rem;
+}
+.studio-navigation button[aria-current="page"], .studio-navigation button:hover:enabled {
+  background: #233651;
+  color: white;
+}
+.studio-navigation button[aria-current="page"] { box-shadow: inset 3px 0 #94dcce; }
+.studio-link { display: block; margin-top: auto; padding: 20px 7px 0; color: #bccce0; font-size: .78rem; }
+
+.studio-content { min-width: 0; }
+.studio-bar {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px clamp(16px, 3vw, 40px);
+  gap: 10px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.studio-context { color: var(--muted); font-size: .9rem; font-weight: 650; }
+.studio-context button, .studio-bar .action-link { min-height: 38px; font-size: .86rem; }
+.studio .frame { width: min(1280px, calc(100% - clamp(28px, 6vw, 80px))); }
+.studio .panel { border-radius: 13px; }
+.studio button.secondary, .studio .action-link { border-color: #c8d6e2; }
+.studio select, .studio textarea, .studio input[type="search"] { background: #fff; border-color: #c8d6e2; }
+
+.workspace-directory { padding-top: 26px; }
+.directory-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.directory-heading p { color: var(--muted); }
+.workspace-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 19px 0; }
+.workspace-metrics > div {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 11px 15px;
+  background: #fff;
+}
+.workspace-metrics dt { color: var(--muted); font-size: .82rem; font-weight: 600; }
+.workspace-metrics dd { margin: 3px 0 0; font-size: 1.62rem; font-weight: 720; line-height: 1.2; color: #1a314c; }
+.workspace-roster { padding: 0; overflow: hidden; }
+.roster-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 15px 17px 11px; gap: 8px; }
+.roster-heading h2 { margin: 0; font-size: 1.18rem; letter-spacing: -.02em; }
+.roster-heading p { font-size: .85rem; }
+.roster-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 17px 13px;
+}
+.roster-tools label { display: grid; gap: 4px; min-width: 0; font-size: .81rem; font-weight: 650; color: var(--muted); }
+.roster-tools input, .roster-tools select { min-width: 0; width: 100%; min-height: 40px; padding: 6px 8px; border: 1px solid #c8d6e2; border-radius: 7px; color: #17283d; }
+.roster-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .89rem; }
+.roster-table thead { background: #eff4fa; color: #415971; }
+.roster-table th, .roster-table td { padding: 12px 16px; overflow-wrap: anywhere; }
+.roster-table th[scope="col"] { font-size: .82rem; font-weight: 700; }
+.roster-table tbody tr + tr { border-top: 1px solid var(--line); }
+.roster-table tbody tr:hover { background: #f9fbff; }
+.roster-table small { display: block; color: var(--muted); font-size: .77rem; font-weight: 500; }
+.roster-table td:last-child { text-align: right; }
+.roster-person { display: flex; align-items: center; gap: 9px; }
+.roster-avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  color: #0e605b;
+  background: #e1f3f0;
+  font-size: .79rem;
+  font-weight: 750;
+}
+.roster-open { min-height: 34px; padding: 4px 9px; font-size: .81rem; }
+.workspace-empty { border-top: 1px solid var(--line); padding: 30px 17px; }
+.workspace-empty p { margin-top: 5px; }
+.workspace-empty button { margin-top: 12px; }
+
+.studio .dossier-intro { background: #fff; border-color: var(--line); border-left: 4px solid #79b9b0; }
+.studio .candidate-create { margin-inline: 0; }
+.studio .candidate-create h1 { text-align: left; }
+.studio .dialog-messages { background: #f1f5f9; }
+.studio .message[data-role="hr"] { background: #dff2ee; border-color: #c3e0da; }
+.studio .drop { background: #f0f9f7; border-color: #92b6b0; }
+
+@media (max-width: 930px) {
+  .studio { grid-template-columns: 170px minmax(0, 1fr); }
+  .roster-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .studio { display: block; }
+  .studio-sidebar { position: static; min-height: 0; padding: 8px 12px; }
+  .studio-navigation { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 7px; }
+  .studio-navigation button { text-align: center; }
+  .studio-link { display: none; }
+  .roster-table th, .roster-table td { padding-inline: 7px; }
+  .roster-avatar { display: none; }
+  .roster-open { padding-inline: 5px; }
+  .workspace-metrics { gap: 5px; }
+  .workspace-metrics > div { padding-inline: 8px; }
+}
+
+.candidate-overview { margin-top: 12px; }
+.candidate-overview h2 { margin: 0; font-size: 1.25rem; }
+.candidate-overview h2 + button { min-height: 36px; }
+.candidate-overview ul { padding: 0; margin: 12px 0 0; list-style: none; }
+.candidate-overview li { border-top: 1px solid var(--line); padding: 9px 0; }
+.candidate-overview li p { margin: 4px 0; }
+.candidate-overview li button { margin: 4px 5px 0 0; }
+.playback-rate { display: flex; align-items: center; gap: 7px; font-size: .83rem; color: var(--muted); }
+.playback-rate select { padding-block: 5px; }
+.copy-questions { margin-top: 10px; min-height: 34px; font-size: .82rem; }
