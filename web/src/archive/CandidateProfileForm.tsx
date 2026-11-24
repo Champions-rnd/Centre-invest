@@ -112,7 +112,7 @@ export function CandidateProfileForm({ busy, onSave }: {
             </div>
             <div className="candidate-file-import">
               <label htmlFor="candidate-wav">Интервью из WAV</label>
-              <p className="muted" id="candidate-wav-help">До {MAX_AUDIO_MB} МБ и 60 минут. Расшифруем при сохранении.</p>
+              <p className="muted" id="candidate-wav-help">До {MAX_AUDIO_MB} МБ. Расшифруем при сохранении.</p>
               <input id="candidate-wav" ref={wavInput} type="file" accept=".wav,audio/wav,audio/x-wav"
                 aria-describedby={wavError ? 'candidate-wav-help candidate-wav-error' : 'candidate-wav-help'}
                 aria-invalid={Boolean(wavError)} onChange={event => {

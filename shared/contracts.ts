@@ -1,7 +1,6 @@
 import { z } from 'zod'
 
-export const MAX_AUDIO_MB = 50
-export const MAX_AUDIO_SECONDS = 60 * 60
+export const MAX_AUDIO_MB = 40
 
 export const vacancySchema = z.object({
   description: z.string().trim().max(12_000),
@@ -13,6 +12,7 @@ export const vacancySchema = z.object({
 export const segmentSchema = z.object({
   id: z.string().min(1),
   speaker: z.string(),
+  speakerId: z.string().min(1).max(64).optional(),
   roleReviewed: z.boolean().optional(),
   startMs: z.number().int().nonnegative(),
   endMs: z.number().int().positive(),

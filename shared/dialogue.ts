@@ -7,6 +7,7 @@ export function groupDialogue(transcript: Segment[]) {
     const previous = turn?.at(-1)
     if (turn && previous && (segment.speaker === 'hr' || segment.speaker === 'candidate')
       && segment.speaker === previous.speaker && segment.startMs >= previous.startMs
+      && segment.speakerId === previous.speakerId
       && segment.startMs - previous.endMs <= 1350
       && segment.endMs - turn[0].startMs <= 42_000) {
       turn.push(segment)

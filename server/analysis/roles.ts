@@ -5,6 +5,7 @@ const hrLanguage = /у нас в компании|мы ищем|наша вак�
 const candidateQuestion = /^(?:могу ли я|у меня вопрос|а у вас (?:есть|как)\s+[^?]*(?:график|удал[её]нк|отбор|ваканси)|какие у вас (?:этапы отбора|условия работы)|can i\b|should i\b|my question)/iu
 const experience = /(?:^|[\s,.;:])(?:я|мы)\s+(?:(?:бы|тогда|раньше|лично|сам[а]?|обычно)\s+)*(?:учил\p{L}*|работал\p{L}*|делал\p{L}*|разработал\p{L}*|занимал\p{L}*|отвечал\p{L}*|сделал\p{L}*|проверял\p{L}*|тестировал\p{L}*|проектировал\p{L}*)|(?:^|[\s,.;:])(?:мой опыт|в моём проекте|i (?:worked|studied|built|designed|tested|developed))/iu
 const secondPerson = /(?:^|[\s,.;:])(?:ты|тебя|твой|вы|вас|ваш|you|your)(?=$|[\s,.;:!?])/iu
+const firstPerson = /(?:^|[\s,.;:])(?:я|мы|у меня|мой|моя|I|we|my)(?=$|[\s,.;:]|['’])/iu
 
 function anchor(text: string): SpeakerRole {
   if (hrLanguage.test(text)) return 'hr'
@@ -21,6 +22,30 @@ function continuation(previous: Segment, current: Segment) {
 
 const answerCue = /^(?:(?:ну|да|нет)[, ]+)*(?:я|мы|у меня|мне|по моему опыту|i|we)(?![\p{L}\p{N}])/iu
 export const shortAcknowledgement = /^(?:угу|ага|да|нет|понятно|ясно|хорошо|окей|okay|yes|no|mhm)[.!?…\s]*$/iu
+
+function diarizedRoles(transcript: Segment[], textRoles: SpeakerRole[]) {
+  const scores = new Map<string, number>()
+  for (const [index, segment] of transcript.entries()) {
+    if (!segment.speakerId) continue
+    const explicit = anchor(segment.text) || (segment.text.endsWith('?') && !firstPerson.test(segment.text) ? 'hr' : '')
+    const role = explicit || textRoles[index]
+    const vote = role === 'hr' ? (explicit ? 4 : 2)
+      : role === 'candidate' ? (explicit ? -4 : -1)
+      : firstPerson.test(segment.text) ? -1 : secondPerson.test(segment.text) ? 2 : 0
+    scores.set(segment.speakerId, (scores.get(segment.speakerId) ?? 0) + vote)
+  }
+  const ranking = [...scores].sort((left, right) => right[1] - left[1])
+  const roles = new Map<string, SpeakerRole>()
+  if (ranking.length === 2 && ranking[0][1] - ranking[1][1] >= 3) {
+    roles.set(ranking[0][0], 'hr')
+    roles.set(ranking[1][0], 'candidate')
+  } else {
+    for (const [speakerId, score] of ranking) {
+      if (Math.abs(score) >= 3) roles.set(speakerId, score > 0 ? 'hr' : 'candidate')
+    }
+  }
+  return roles
+}
 
 export function inferSpeakerRoles(transcript: Segment[]): SpeakerRole[] {
   const anchors = transcript.map(segment => anchor(segment.text))
@@ -45,7 +70,8 @@ export function inferSpeakerRoles(transcript: Segment[]): SpeakerRole[] {
     else if (prior && next === prior && segment.startMs - previous.endMs <= 1000
       && transcript[index + 1].startMs - segment.endMs <= 1000) roles[index] = prior
   }
-  return roles
+  const voices = diarizedRoles(transcript, roles)
+  return transcript.map((segment, index) => segment.speakerId ? voices.get(segment.speakerId) ?? '' : roles[index])
 }
 
 export function suggestSpeakerRoles(transcript: Segment[]): Segment[] {

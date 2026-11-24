@@ -175,7 +175,7 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
               }} />
             <span className="upload-icon" aria-hidden="true">↑</span>
             <strong>Выберите или перетащите WAV</strong>
-            <span className="muted">До {MAX_AUDIO_MB} МБ и 60 минут на файл</span>
+            <span className="muted">До {MAX_AUDIO_MB} МБ на файл</span>
           </label>
           {files.length > 0 && <>
             {!attachTo && files.length > 1 && <label className="upload-mode">

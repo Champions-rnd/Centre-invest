@@ -1,155 +1,105 @@
-import { execFile } from 'node:child_process'
-import { access, copyFile, link, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join, relative, resolve } from 'node:path'
-import { promisify } from 'node:util'
 import { z } from 'zod'
-import { MAX_AUDIO_SECONDS } from '../../shared/contracts'
 import type { Segment } from '../../shared/contracts'
 import { ApiError } from '../errors'
+import { CHATCI_BASE_URL, chatciKey } from '../chatci'
 
-const run = promisify(execFile)
-const options = { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }
-const whisperResult = z.object({
-  transcription: z.array(z.object({
-    offsets: z.object({ from: z.number().int().nonnegative(), to: z.number().int().nonnegative() }),
-    text: z.string(),
-  })),
+const MODEL = 'elevenlabs/scribe-v2'
+const span = { start: z.number().finite().nonnegative(), end: z.number().finite().nonnegative() }
+const responseSchema = z.object({
+  text: z.string(),
+  words: z.array(z.object({
+    ...span,
+    word: z.string(),
+    speaker: z.number().int().nonnegative().nullish(),
+    speaker_label: z.string().trim().min(1).max(64).nullish(),
+  })).default([]),
+  segments: z.array(z.object({ ...span, text: z.string() })).default([]),
 })
-let transcribing = false
 
-function speechPaths() {
-  const directory = join(process.cwd(), '.speech')
-  const windows = process.platform === 'win32'
-  return {
-    ffmpeg: process.env.FFMPEG_COMMAND || (windows ? join(directory, 'ffmpeg.exe') : 'ffmpeg'),
-    whisper: process.env.WHISPER_COMMAND || (windows ? join(directory, 'whisper-cli.exe') : 'whisper-cli'),
-    model: process.env.WHISPER_MODEL_PATH || join(directory, 'ggml-base.bin'),
-    vad: process.env.WHISPER_VAD_MODEL_PATH || join(directory, 'ggml-silero-v6.2.0.bin'),
-  }
+function appendWord(text: string, word: string) {
+  if (!text || /^[,.!?;:%…»)}\]]/u.test(word) || /[«({\[]$/u.test(text)) return text + word
+  return text + ' ' + word
 }
 
-function missingRuntime() {
-  return new ApiError(503, 'SPEECH_UNAVAILABLE', 'Движок распознавания недоступен. Проверьте установку FFmpeg, Whisper и моделей.')
-}
-
-function processError(error: unknown, failure: ApiError) {
-  if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return missingRuntime()
-  if (error && typeof error === 'object' && 'killed' in error && error.killed) {
-    return new ApiError(504, 'SPEECH_TIMEOUT', 'Обработка заняла слишком много времени. Попробуйте загрузить более короткий фрагмент.')
-  }
-  return failure
-}
-
-function whisperFailure(error: unknown) {
-  const failure = error as { code?: string | number; stderr?: string; signal?: string }
-  const code = failure.code
-  if (code === 'EACCES' || code === 'EPERM') {
-    return new ApiError(503, 'WHISPER_ACCESS_DENIED', 'Система отказала в запуске Whisper. Код ошибки: ' + code + '.')
-  }
-  if (typeof code === 'number' && (code >>> 0) === 0xc0000135) {
-    return new ApiError(503, 'WHISPER_DLL_MISSING', 'Whisper не запустился: отсутствует библиотека DLL (0xC0000135).')
-  }
-  const detail = /failed to (?:open|load|initialize)[^\n]*(?:model|context)/iu.test(failure.stderr ?? '')
-    ? 'Whisper не смог открыть или загрузить модель.'
-    : 'Whisper не смог обработать запись.'
-  const status = typeof code === 'number' && (code >>> 0) >= 0x80000000
-    ? '0x' + (code >>> 0).toString(16).toUpperCase()
-    : code ?? failure.signal
-  return new ApiError(502, 'TRANSCRIPTION_FAILED', status === undefined ? detail : detail + ' Код ошибки: ' + status + '.')
-}
-
-async function whisperModelPath(path: string, directory: string, name: string) {
-  const absolute = resolve(path)
-  const argument = relative(directory, absolute)
-  // Some Windows builds read CLI paths through a narrow-character API.
-  if (/^[\x20-\x7e]+$/u.test(argument)) return argument
-  const alias = join(directory, name)
-  const source = await realpath(absolute)
-  try {
-    await link(source, alias)
-  } catch {
-    await copyFile(source, alias)
-  }
-  return name
-}
-
-async function normalizeAudio(command: string, input: string, output: string) {
-  try {
-    await run(command, [
-      '-nostdin', '-hide_banner', '-loglevel', 'error', '-f', 'wav', '-i', input, '-map', '0:a:0',
-      '-t', String(MAX_AUDIO_SECONDS + 1), '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', output,
-    ], { ...options, timeout: 120_000 })
-  } catch (error) {
-    throw processError(error, new ApiError(400, 'INVALID_WAV', 'Не удалось прочитать аудио. Проверьте, что WAV содержит звуковую дорожку.'))
-  }
-  const { size } = await stat(output)
-  const bytesPerSecond = 16_000 * 2
-  if (size > MAX_AUDIO_SECONDS * bytesPerSecond + 4096) {
-    throw new ApiError(413, 'AUDIO_TOO_LONG', 'Длительность записи превышает 60 минут.')
-  }
-}
-
-async function recognize(paths: ReturnType<typeof speechPaths>, directory: string) {
-  const command = /[/\\]/u.test(paths.whisper) ? resolve(paths.whisper) : paths.whisper
-  let model: string
-  let vad: string
-  try {
-    model = await whisperModelPath(paths.model, directory, 'model.bin')
-    vad = await whisperModelPath(paths.vad, directory, 'vad.bin')
-  } catch {
-    throw new ApiError(503, 'SPEECH_MODEL_ACCESS', 'Не удалось подготовить модели Whisper. Проверьте пути, права доступа и свободное место.')
-  }
-  try {
-    await run(command, [
-      '-m', model, '-f', 'speech.wav', '-l', 'auto', '-ng', '-np', '-oj', '-of', 'transcript',
-      '--vad', '-vm', vad, '-ml', '120', '-sow',
-    ], { ...options, cwd: directory, timeout: 20 * 60_000 })
-  } catch (error) {
-    const failure = processError(error, whisperFailure(error))
-    console.error('Ошибка распознавания:', failure.code, failure.message)
-    throw failure
+export function parseScribeTranscript(payload: unknown): Segment[] {
+  const parsed = responseSchema.safeParse(payload)
+  if (!parsed.success) throw new ApiError(502, 'INVALID_TRANSCRIPT', 'ChatCI вернул расшифровку в неожиданном формате.')
+  const { words, segments, text } = parsed.data
+  const result: Segment[] = []
+  let current: Omit<Segment, 'id'> | undefined
+  function finish() {
+    if (current && current.endMs > current.startMs) result.push({ id: `s${result.length + 1}`, ...current })
   }
 
-  let result: unknown
-  try {
-    result = JSON.parse(await readFile(join(directory, 'transcript.json'), 'utf8'))
-  } catch {
-    throw new ApiError(502, 'INVALID_TRANSCRIPT', 'Движок не вернул читаемую расшифровку.')
+  for (const item of [...words].sort((left, right) => left.start - right.start)) {
+    const word = item.word.trim()
+    if (!word || item.end < item.start) continue
+    const startMs = Math.round(item.start * 1000)
+    const endMs = Math.round(item.end * 1000)
+    const speakerId = item.speaker_label ?? (item.speaker == null ? undefined : `speaker_${item.speaker}`)
+    if (!current || current.speakerId !== speakerId || startMs - current.endMs > 1100
+      || startMs - current.startMs >= 25_000 || (current.text.length >= 130 && /[.!?…]$/u.test(current.text))) {
+      finish()
+      current = { speaker: '', ...(speakerId ? { speakerId } : {}), startMs, endMs, text: word }
+    } else {
+      current.text = appendWord(current.text, word)
+      current.endMs = Math.max(current.endMs, endMs)
+    }
   }
-  const parsed = whisperResult.safeParse(result)
-  if (!parsed.success) {
-    throw new ApiError(502, 'INVALID_TRANSCRIPT', 'Движок вернул расшифровку в неожиданном формате.')
+  finish()
+
+  if (result.length) return result
+  for (const segment of [...segments].sort((left, right) => left.start - right.start)) {
+    const startMs = Math.round(segment.start * 1000)
+    const endMs = Math.round(segment.end * 1000)
+    if (endMs > startMs && segment.text.trim()) {
+      result.push({ id: `s${result.length + 1}`, speaker: '', startMs, endMs, text: segment.text.trim() })
+    }
   }
-  const segments: Segment[] = []
-  for (const { offsets, text } of parsed.data.transcription) {
-    const trimmed = text.trim()
-    if (!trimmed || offsets.to <= offsets.from || /^(?:\[[^\]]*\]|\([^()]*\))$/u.test(trimmed)) continue
-    segments.push({ id: `s${segments.length + 1}`, speaker: '', startMs: offsets.from, endMs: offsets.to, text: trimmed })
-  }
-  if (!segments.length) throw new ApiError(422, 'NO_SPEECH', 'Разборчивой речи в записи не обнаружено.')
-  return segments
+  if (result.length) return result
+  if (!text.trim()) throw new ApiError(422, 'NO_SPEECH', 'ChatCI не обнаружил разборчивую речь.')
+  throw new ApiError(502, 'MISSING_TIMESTAMPS', 'ChatCI вернул текст без таймкодов.')
 }
 
 export async function transcribeWav(audio: Express.Multer.File): Promise<Segment[]> {
-  if (transcribing) {
-    throw new ApiError(429, 'SPEECH_BUSY', 'Уже обрабатывается другая запись. Повторите загрузку после её завершения.')
-  }
-  transcribing = true
-  let directory: string | undefined
+  const key = chatciKey()
+  if (!key) throw new ApiError(503, 'CHATCI_NOT_CONFIGURED', 'Укажите HR_CHATCI_API_KEY в файле .env и перезапустите сервер.')
+
+  const body = new FormData()
+  body.set('model', MODEL)
+  body.set('response_format', 'verbose_json')
+  body.set('diarize', 'true')
+  body.set('timestamps_granularity', 'word')
+  body.set('file', new Blob([new Uint8Array(audio.buffer)], { type: 'audio/wav' }), 'interview.wav')
+
+  let response: Response
   try {
-    const paths = speechPaths()
-    await Promise.all([access(paths.model), access(paths.vad)]).catch(() => { throw missingRuntime() })
-    directory = await mkdtemp(join(tmpdir(), 'hr-speech-'))
-    const input = join(directory, 'original.wav')
-    const normalized = join(directory, 'speech.wav')
-    await writeFile(input, audio.buffer)
-    await normalizeAudio(paths.ffmpeg, input, normalized)
-    return await recognize(paths, directory)
-  } finally {
-    transcribing = false
-    if (directory) await rm(directory, { recursive: true, force: true }).catch(() => {
-      console.error('Не удалось очистить временную папку распознавания.')
+    response = await fetch(CHATCI_BASE_URL + '/audio/transcriptions', {
+      method: 'POST',
+      body,
+      headers: { Authorization: `Bearer ${key}` },
+      redirect: 'error',
+      signal: AbortSignal.timeout(180_000),
     })
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new ApiError(504, 'SPEECH_TIMEOUT', 'ChatCI слишком долго обрабатывает запись. Попробуйте ещё раз.')
+    }
+    throw new ApiError(503, 'CHATCI_UNAVAILABLE', 'Не удалось подключиться к ChatCI. Попробуйте позже.')
   }
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new ApiError(503, 'CHATCI_AUTH_FAILED', 'ChatCI отклонил ключ или доступ к модели.')
+    }
+    if (response.status === 413) throw new ApiError(413, 'FILE_TOO_LARGE', 'ChatCI отклонил размер файла.')
+    if (response.status === 429) throw new ApiError(429, 'CHATCI_RATE_LIMIT', 'Достигнут лимит ChatCI. Повторите запрос позже.')
+    if (response.status === 400 || response.status === 415 || response.status === 422) {
+      throw new ApiError(400, 'INVALID_WAV', 'ChatCI не смог обработать этот WAV. Проверьте запись.')
+    }
+    throw new ApiError(502, 'TRANSCRIPTION_FAILED', 'ChatCI не смог расшифровать запись. Попробуйте позже.')
+  }
+  const payload = await response.json().catch(() => {
+    throw new ApiError(502, 'INVALID_TRANSCRIPT', 'ChatCI вернул нечитаемую расшифровку.')
+  })
+  return parseScribeTranscript(payload)
 }

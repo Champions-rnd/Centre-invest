@@ -161,8 +161,6 @@
 .workspace-empty button { margin-top: 12px; }
 
 .studio .dossier-intro { background: #f0f7ee; border-color: var(--line); border-left: 4px solid var(--brand-green); }
-.studio .candidate-create { margin-inline: 0; }
-.studio .candidate-create h1 { text-align: left; }
 .studio .dialog-messages { background: #f3f7f2; }
 .studio .message[data-role="hr"] { background: #e0efe0; border-color: #c7ddc3; }
 .studio .drop { background: #f0f7ee; border-color: #8fba89; }
@@ -175,7 +173,7 @@
   .studio { display: block; }
   .studio-sidebar { position: static; min-height: 0; padding: 8px 12px; }
   .studio-brand, .studio-brand:hover:enabled { flex-direction: row; align-items: center; gap: 12px; }
-  .studio-navigation { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 7px; }
+  .studio-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 7px; }
   .studio-navigation button { text-align: center; }
   .studio-link { display: none; }
   .roster-table th, .roster-table td { padding-inline: 7px; }

@@ -160,8 +160,6 @@ function App() {
           <button type="button" disabled={busy} onClick={goHome} aria-current={screen.view === 'candidates' ? 'page' : undefined}>Кандидаты</button>
           <button type="button" disabled={busy} onClick={() => navigate({ view: 'dashboard' })}
             aria-current={screen.view === 'dashboard' ? 'page' : undefined}>Интервью</button>
-          <button type="button" disabled={busy} onClick={() => openUpload()}
-            aria-current={screen.view === 'upload' ? 'page' : undefined}>Загрузка WAV</button>
         </nav>
         <a className="studio-link" href="https://www.centrinvest.ru/">Сайт банка «Центр-инвест»</a>
       </aside>

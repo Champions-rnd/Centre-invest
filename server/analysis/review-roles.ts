@@ -27,11 +27,13 @@ export async function reviewRoles(transcript: Segment[], signal: AbortSignal) {
   const inferred = inferSpeakerRoles(transcript)
   const fallback = transcript.map((segment, index) => {
     if (segment.roleReviewed) return segment
-    const speaker = shortAcknowledgement.test(segment.text.trim()) ? '' : inferred[index] || segment.speaker
+    const speaker = segment.speakerId ? inferred[index] || segment.speaker
+      : shortAcknowledgement.test(segment.text.trim()) ? '' : inferred[index] || segment.speaker
     return { ...segment, speaker }
   })
   const result = [...fallback]
   let reviewedCount = 0
+  const needsReview = (segment: Segment) => !segment.roleReviewed && (!segment.speakerId || !segment.speaker)
   try {
     const provider = await coachProvider()
     if (!provider || signal.aborted) return { source: 'rules' as const, transcript: fallback, reviewedCount }
@@ -39,14 +41,14 @@ export async function reviewRoles(transcript: Segment[], signal: AbortSignal) {
     const batch = 14
     for (let start = 0; start < transcript.length && !deadline.aborted; start += batch) {
       const end = start + batch
-      if (transcript.slice(start, end).every(segment => segment.roleReviewed)) continue
+      if (!transcript.slice(start, end).some(needsReview)) continue
       const contextStart = Math.max(0, start - 3)
       const rows = transcript.slice(contextStart, end + 3).map((segment, offset) => {
         const index = contextStart + offset
         return {
           id: segment.id,
-          target: !segment.roleReviewed && index >= start && index < end,
-          ...(segment.roleReviewed && segment.speaker ? { confirmedRole: segment.speaker } : {}),
+          target: needsReview(segment) && index >= start && index < end,
+          ...(!needsReview(segment) && segment.speaker ? { confirmedRole: segment.speaker } : {}),
           text: segment.text.slice(0, 340),
         }
       })
@@ -56,7 +58,7 @@ export async function reviewRoles(transcript: Segment[], signal: AbortSignal) {
       for (let index = start; index < Math.min(end, transcript.length); index++) {
         const segment = transcript[index]
         const match = matches.get(segment.id)
-        if (segment.roleReviewed || !match) continue
+        if (!needsReview(segment) || !match) continue
         const cue = normalize(match.cue)
         const proposed = match.role === 'unknown' || shortAcknowledgement.test(segment.text.trim()) ? '' : match.role
         if (proposed && (cue.length < 4 || !normalize(segment.text).includes(cue))) continue

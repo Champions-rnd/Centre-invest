@@ -11,8 +11,7 @@
     "dev:api": "node --watch --import tsx server/index.ts",
     "dev:web": "vite",
     "check": "tsc --noEmit",
-    "setup:speech": "node scripts/setup-speech.mjs",
-    "setup:coach": "node scripts/setup-speech.mjs --coach",
+    "setup:coach": "node scripts/setup-coach.mjs",
     "build": "npm run check && vite build",
     "start": "node --import tsx server/index.ts"
   },

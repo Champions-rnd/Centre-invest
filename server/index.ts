@@ -103,6 +103,7 @@ app.patch('/api/interviews/:id/transcript', json, async (request, response) => {
   const { vacancy } = stored.result
   const reviewed = input.data.transcript.map((segment, index) => ({
     ...segment,
+    speakerId: transcript[index].speakerId,
     roleReviewed: transcript[index].roleReviewed || segment.roleReviewed || segment.speaker !== transcript[index].speaker,
   }))
   const result = vacancy ? await buildReport({ vacancy, transcript: reviewed })
