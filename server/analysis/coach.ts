@@ -3,7 +3,7 @@ import { observationSchema, recommendationSchema, type AnswerObservation, type C
 import { coachingRules } from './coach-rules'
 import { coachProvider } from './local-coach'
 import { questionLinks, transcriptObservations } from './observations'
-import { generate } from './structured-model'
+import { generate, modelFailure } from './structured-model'
 import { chatciTextProvider } from '../chatci'
 import { speechCues } from './speech-cues'
 
@@ -151,8 +151,17 @@ async function baseCoaching(input: CoachingRequest, signal: AbortSignal): Promis
     if (provider) {
       const cues = speechCues(input.transcript)
       const inputs = provider.source === 'chatci' ? chatciInputs(input, baseline, cues) : [modelInput(input, baseline, observations)]
+      const modelSignal = provider.source === 'chatci' ? AbortSignal.any([signal, AbortSignal.timeout(105_000)]) : signal
       const results: z.infer<typeof modelOutput>[] = []
-      for (const content of inputs) results.push(await generate(provider, signal, instruction, content, modelOutput, 3200))
+      for (const content of inputs) {
+        try {
+          results.push(await generate(provider, modelSignal, instruction, content, modelOutput, 3200))
+        } catch (error) {
+          if (!results.length || signal.aborted) throw error
+          console.warn(`ChatCI обработал часть расшифровки: ${modelFailure(error)}.`)
+          break
+        }
+      }
       observations = groundedObservations({
         unasked: [], rephrase: [], clarify: [],
         strengths: results.flatMap(result => result.strengths),
@@ -172,18 +181,28 @@ async function baseCoaching(input: CoachingRequest, signal: AbortSignal): Promis
         const covered = new Set(fromModel.map(item => item.kind))
         const supplement = baseline.filter(item => !covered.has(item.kind))
         const recommendations = [...fromModel.slice(0, 9), ...supplement].slice(0, 12)
-        return { source: provider.source, ruleSupplement: supplement.length > 0, recommendations, observations }
+        return { source: provider.source, ruleSupplement: supplement.length > 0 || results.length < inputs.length, recommendations, observations }
       }
     }
-  } catch {
-    if (!signal.aborted) console.error('Не удалось получить рекомендации от текстовой модели.')
+  } catch (error) {
+    if (!signal.aborted) console.error(`Не удалось получить рекомендации от текстовой модели: ${modelFailure(error)}.`)
   }
   return { source: 'rules', ruleSupplement: false, recommendations: baseline, observations }
 }
 
-export async function coachInterview(...args: Parameters<typeof baseCoaching>) {
-  const result = await baseCoaching(...args)
-  const ids = args[0].transcript.flatMap(s => s.speaker === 'candidate' ? (s.text.replace(/«[^»]*»|\x22[^\x22]*\x22/gu, ' ').match(/(?<!\p{L})(?:эм+|э(?:[-‑–]?э)*)(?!\p{L})/giu) ?? []).flatMap(token => token.length > 1 && /^э[-‑–]?э/iu.test(token) ? [s.id,s.id] : [s.id]) : [])
+export function coachInterviewLocally(input: CoachingRequest): CoachingResult {
+  return withFillerEvidence({
+    source: 'rules', ruleSupplement: false, recommendations: coachingRules(input),
+    observations: transcriptObservations(input.transcript),
+  }, input)
+}
+
+export async function coachInterview(input: CoachingRequest, signal: AbortSignal) {
+  return withFillerEvidence(await baseCoaching(input, signal), input)
+}
+
+function withFillerEvidence(result: CoachingResult, input: CoachingRequest) {
+  const ids = input.transcript.flatMap(s => s.speaker === 'candidate' ? (s.text.replace(/«[^»]*»|\x22[^\x22]*\x22/gu, ' ').match(/(?<!\p{L})(?:эм+|э(?:[-‑–]?э)*)(?!\p{L})/giu) ?? []).flatMap(token => token.length > 1 && /^э[-‑–]?э/iu.test(token) ? [s.id,s.id] : [s.id]) : [])
   if (ids.length >= 2 && !result.observations.some(o => o.aspect === 'fillers')) {
     result.observations.unshift({ kind: 'improvement', aspect: 'fillers', evidenceIds: [...new Set(ids)].slice(0,3), text: 'Повторные или протяжные «э» и «эм». Сверьте с аудио.' })
     result.observations = result.observations.slice(0,12)

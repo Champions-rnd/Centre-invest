@@ -35,6 +35,7 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   const messages = useRef(new Map<string, HTMLLIElement>())
   const roleRequest = useRef<AbortController | null>(null)
   const [transcript, setTranscript] = useState(result.transcript)
+  const [vacancy] = useState(result.vacancy)
   const [draft, setDraft] = useState<Segment[] | null>(null)
   const [active, setActive] = useState('')
   const [rate, setRate] = useState('1')
@@ -43,6 +44,8 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   const [reviewInfo, setReviewInfo] = useState('')
   const [reviewing, setReviewing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [reportError, setReportError] = useState('')
   const [retry, setRetry] = useState(0)
   const [coaching, setCoaching] = useState<CoachingState>({ status: 'loading' })
   const turns = groupDialogue(transcript)
@@ -58,14 +61,26 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   useEffect(() => {
     const controller = new AbortController()
     setCoaching({ status: 'loading' })
-    void requestCoaching({ vacancy: result.vacancy, transcript }, controller.signal).then(
-      next => { if (!controller.signal.aborted) setCoaching({ status: 'ready', result: next }) },
-      error => {
-        if (!controller.signal.aborted) setCoaching({ status: 'error', message: errorMessage(error, 'Не удалось подготовить рекомендации.') })
-      },
-    )
+    const input = { vacancy, transcript }
+    const bounded = (ms: number) => AbortSignal.any([controller.signal, AbortSignal.timeout(ms)])
+    async function loadCoaching() {
+      const initial = await requestCoaching(input, bounded(5_000), 'local').catch(() => undefined)
+      if (controller.signal.aborted) return
+      if (initial) setCoaching({ status: 'ready', result: initial, refining: true })
+      try {
+        const updated = await requestCoaching(input, bounded(110_000))
+        if (!controller.signal.aborted) setCoaching({
+          status: 'ready', result: updated, refinementFailed: updated.source === 'rules',
+        })
+      } catch (error) {
+        if (controller.signal.aborted) return
+        setCoaching(initial ? { status: 'ready', result: initial, refinementFailed: true }
+          : { status: 'error', message: errorMessage(error, 'Не удалось подготовить рекомендации.') })
+      }
+    }
+    void loadCoaching()
     return () => controller.abort()
-  }, [result.vacancy, transcript, retry])
+  }, [vacancy, transcript, retry])
 
   function play(segment: Segment, reveal = false) {
     setActive(segment.id)
@@ -89,7 +104,7 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   }
 
   async function checkRoles() {
-    if (roleRequest.current) return
+    if (refreshing || roleRequest.current) return
     const controller = new AbortController()
     roleRequest.current = controller
     setReviewing(true)
@@ -112,18 +127,32 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   }
 
   async function saveDraft() {
-    if (!draft || draft.some(segment => !segment.text.trim())) return
+    if (refreshing || !draft || draft.some(segment => !segment.text.trim())) return
     setSaveError('')
+    setReportError('')
     setSaving(true)
     try {
       const saved = await onSave(draft.map(segment => ({ ...segment, text: segment.text.trim() })))
       setTranscript(saved)
       setDraft(null)
-      setReviewInfo('Диалог сохранён. Рекомендации обновятся по новой расшифровке.')
+      setReviewInfo('Диалог сохранён. Критерии пересчитаны по новой расшифровке.')
     } catch (error) {
       setSaveError(errorMessage(error, 'Не удалось сохранить расшифровку.'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function refreshReport() {
+    if (saving || refreshing || draft) return
+    setReportError('')
+    setRefreshing(true)
+    try {
+      await onSave(transcript)
+    } catch (error) {
+      setReportError(errorMessage(error, 'Не удалось обновить анализ критериев.'))
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -154,12 +183,12 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
               <p className="muted">Роли определяются по тексту. Без роли: {uncertain} из {transcript.length} фрагментов.</p>
             </div>
             {!draft && <div className="dialog-tools">
-              <button type="button" className="secondary" disabled={reviewing} onClick={() => {
+              <button type="button" className="secondary" disabled={reviewing || refreshing} onClick={() => {
                 setReviewInfo('')
                 setSaveError('')
                 setDraft(transcript)
               }}>Редактировать</button>
-              <button type="button" disabled={reviewing || transcript.every(segment => segment.roleReviewed)}
+              <button type="button" disabled={reviewing || refreshing || transcript.every(segment => segment.roleReviewed)}
                 onClick={() => void checkRoles()}>{reviewing ? 'Проверяем роли…' : 'Уточнить роли'}</button>
             </div>}
           </div>
@@ -191,16 +220,16 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
                       return <div key={segment.id} className="message-edit" data-proposed={proposed}>
                         <div className="message-meta">
                           {turn.length > 1 && timestamp(segment)}
-                          <SelectField disabled={saving} label={`Роль в реплике ${timecode(segment.startMs)}`} value={roleOf(value)}
+                          <SelectField disabled={saving || refreshing} label={`Роль в реплике ${timecode(segment.startMs)}`} value={roleOf(value)}
                             options={Object.entries(roleLabels).map(([value, label]) => ({ value, label }))}
                             onChange={speaker => updateDraft(segment.id, { speaker, roleReviewed: true })} />
                           {proposed && <span className="role-change">{roleLabels[roleOf(segment)]} → {roleLabels[roleOf(value)]}</span>}
                           {!proposed && !value.roleReviewed && roleOf(value) && (
-                            <button type="button" className="secondary" disabled={saving}
+                            <button type="button" className="secondary" disabled={saving || refreshing}
                               onClick={() => updateDraft(segment.id, { roleReviewed: true })}>Подтвердить роль</button>
                           )}
                         </div>
-                        <textarea rows={2} disabled={saving} aria-label={`Текст реплики ${timecode(segment.startMs)}`}
+                        <textarea rows={2} disabled={saving || refreshing} aria-label={`Текст реплики ${timecode(segment.startMs)}`}
                           value={value.text} onChange={event => updateDraft(segment.id, { text: event.target.value })} />
                       </div>
                     })}
@@ -217,10 +246,10 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
             })}
           </ol>
           {draft && <div className="actions edit-actions">
-            <button type="button" disabled={saving || draft.some(segment => !segment.text.trim())} onClick={() => void saveDraft()}>
+            <button type="button" disabled={saving || refreshing || draft.some(segment => !segment.text.trim())} onClick={() => void saveDraft()}>
               {saving ? 'Сохраняем…' : 'Сохранить и обновить рекомендации'}
             </button>
-            <button type="button" className="secondary" disabled={saving} onClick={() => {
+            <button type="button" className="secondary" disabled={saving || refreshing} onClick={() => {
               setDraft(null)
               setReviewInfo('')
               setSaveError('')
@@ -230,9 +259,11 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
         <CoachingPanel state={coaching} segments={originals} onJump={segment => play(segment, true)}
           onRetry={() => setRetry(value => value + 1)} formatTime={timecode} />
       </div>
+      {reportError && <p className="error" role="alert">{reportError}</p>}
       {(coaching.status === 'ready' || result.vacancy?.criteria.length) ? <AnswerAssessment
         observations={coaching.status === 'ready' ? coaching.result.observations : []}
-        vacancy={result.vacancy} findings={result.report} status={coaching.status}
+        vacancy={result.vacancy} findings={result.report} reportSource={result.reportSource} status={coaching.status}
+        refreshing={refreshing} refreshDisabled={refreshing || saving || Boolean(draft) || reviewing} onRefresh={() => void refreshReport()}
         segments={originals} onJump={segment => play(segment, true)} formatTime={timecode} /> : null}
     </section>
   )

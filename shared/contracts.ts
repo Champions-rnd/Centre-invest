@@ -40,6 +40,7 @@ export const findingSchema = z.object({
   status: z.enum(['supported', 'partial', 'missing']),
   conclusion: z.string().trim().min(1),
   evidenceIds: z.array(z.string().min(1)),
+  evidence: z.array(z.object({ segmentId: z.string().min(1), quote: z.string().min(1) })).optional(),
   gaps: z.array(z.string().trim().min(1)),
   nextQuestions: z.array(z.string().trim().min(1)),
 })
@@ -81,6 +82,7 @@ export const resultSchema = z.object({
   vacancy: vacancySchema.nullable(),
   transcript: transcriptSchema,
   report: reportSchema,
+  reportSource: z.enum(['chatci', 'rules']).optional(),
 })
 
 export type Vacancy = z.infer<typeof vacancySchema>

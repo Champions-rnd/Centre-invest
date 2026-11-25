@@ -121,6 +121,7 @@ export function archiveDownload(candidateId?: string) {
   return candidateId ? `/api/export.xlsx?candidate=${candidateId}` : '/api/export.xlsx'
 }
 
-export function requestCoaching(input: CoachingRequest, signal: AbortSignal) {
-  return typedRequest(coachingResultSchema, '/api/coach', jsonRequest('POST', input, signal))
+export function requestCoaching(input: CoachingRequest, signal: AbortSignal, mode?: 'local') {
+  const path = mode === 'local' ? '/api/coach?mode=local' : '/api/coach'
+  return typedRequest(coachingResultSchema, path, jsonRequest('POST', input, signal))
 }

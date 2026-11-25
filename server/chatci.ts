@@ -10,7 +10,7 @@ export function chatciTextProvider() {
   return {
     source: 'chatci' as const,
     baseUrl: CHATCI_BASE_URL,
-    model: process.env.HR_CHATCI_TEXT_MODEL?.trim() || 'gpt-4o-mini',
+    model: process.env.HR_CHATCI_TEXT_MODEL?.trim() || 'gpt-6.2-sol',
     key,
   }
 }

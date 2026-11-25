@@ -17,7 +17,7 @@
 
 В ответе `/api/coach` поле `source` показывает источник подсказок. Возможные значения — `local` для локальной модели, `configured` для настроенного агента и `rules` для правил. Поле `ruleSupplement` отмечает, что часть подсказок добавлена правилами. У каждой рекомендации есть `kind` (`unasked`, `rephrase` или `clarify`), вопрос, причина и `evidenceIds` для перехода к исходной реплике.
 
-Результат содержит `mode: "live"`, `vacancy`, `transcript` и `report`. В элементе отчёта поля `criterionId`, `status`, `conclusion`, `evidenceIds`, `gaps` и `nextQuestions`. Текст цитаты берётся из `transcript` по ID. Текущий поиск по ключевым словам возвращает `partial` при совпадении и `missing` при его отсутствии.
+Результат содержит `mode: "live"`, `vacancy`, `transcript` и `report`. В элементе отчёта поля `criterionId`, `status`, `conclusion`, `evidenceIds`, `gaps` и `nextQuestions`. Текст цитаты берётся из `transcript` по ID. При `reportSource: "chatci"` в `evidence` передаются проверенные точные цитаты с ID реплик кандидата. При `reportSource: "rules"` поиск по ключевым словам возвращает `partial` при совпадении и `missing` при его отсутствии. В старых записях источник может отсутствовать.
 
 Ошибки имеют вид `{ "error": { "code": "INVALID_WAV", "message": "…" } }`.
 

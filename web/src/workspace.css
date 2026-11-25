@@ -209,9 +209,16 @@
 .vacancy-context textarea { width: 100%; resize: none; overflow-y: auto; }
 .candidate-create .directory-heading { justify-content: center; }
 .assessment-coverage { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.assessment-coverage ul { margin: 7px 0 0; padding-left: 20px; }
-.assessment-coverage li + li { margin-top: 5px; }
-.assessment-coverage button { margin-inline-start: 6px; }
+.criterion-findings { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+.criterion-finding { background: var(--surface-soft, #f6f9f5); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-wrap: anywhere; }
+.criterion-heading { display: flex; align-items: start; flex-wrap: wrap; gap: 6px 10px; }
+.criterion-heading h5 { margin: 0; font-size: 1rem; }
+.criterion-status { border-radius: 6px; padding: 2px 7px; background: #edf0ec; color: #3c5142; font-size: .78rem; }
+.criterion-status[data-status="supported"] { background: #deefdd; color: #245631; }
+.criterion-status[data-status="partial"] { background: #fbefd8; color: #684617; }
+.criterion-finding p { margin: 7px 0 0; }
+.criterion-finding figure { margin: 8px 0; padding: 6px 10px; border-inline-start: 2px solid #4d8b55; background: #fff; }
+.criterion-finding blockquote { margin: 0 0 5px; white-space: pre-wrap; }
 
 .select-field { display: grid; gap: 5px; min-width: 0; font-size: .86rem; font-weight: 650; }
 .studio .select-trigger {

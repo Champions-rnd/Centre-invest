@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { candidateCreateSchema, candidateStatusSchema, candidateTargetSchema, resumeSchema, transcriptUpdateSchema } from '../shared/archive'
 import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_BYTES, MAX_AUDIO_MB, MAX_AUDIO_MINUTES, MAX_VACANCY_TEXT_BYTES, vacancyImportSchema, vacancySchema } from '../shared/contracts'
 import { wavDurationSeconds } from '../shared/wav'
-import { coachInterview } from './analysis/coach'
+import { coachInterview, coachInterviewLocally } from './analysis/coach'
 import { buildCandidateOverview } from './analysis/candidate-overview'
 import { reviewRoles } from './analysis/review-roles'
 import { openArchive } from './archive'
@@ -229,7 +229,9 @@ app.post('/api/coach', json, async (request, response) => {
   if (!input.success) throw new ApiError(400, 'INVALID_INPUT', 'Проверьте расшифровку и контекст вакансии.')
   const controller = new AbortController()
   response.once('close', () => { if (!response.writableEnded) controller.abort() })
-  const result = await coachInterview(input.data, controller.signal)
+  const result = request.query.mode === 'local'
+    ? coachInterviewLocally(input.data)
+    : await coachInterview(input.data, controller.signal)
   if (!controller.signal.aborted) response.json(result)
 })
 

@@ -3,11 +3,23 @@ import {
   type AnalysisRequest, type InterviewResult, type Vacancy,
 } from '../shared/contracts'
 import { analyzeInterview } from './analysis'
+import { analyzeCriteriaWithChatCI } from './analysis/criterion-report'
+import { modelFailure } from './analysis/structured-model'
+import { chatciTextProvider } from './chatci'
 import { suggestSpeakerRoles } from './analysis/roles'
 import { ApiError } from './errors'
 import { transcribeWav } from './stt'
 
 export async function buildReport(input: AnalysisRequest): Promise<InterviewResult> {
+  const provider = chatciTextProvider()
+  if (provider && input.vacancy.criteria.length && input.transcript.some(segment => segment.speaker === 'candidate')) {
+    try {
+      const report = await analyzeCriteriaWithChatCI(input, provider)
+      return { mode: 'live', ...input, report, reportSource: 'chatci' }
+    } catch (error) {
+      console.error(`Не удалось получить отчёт по критериям от ChatCI: ${modelFailure(error)}.`)
+    }
+  }
   const parsed = reportSchema.safeParse(analyzeInterview(input))
   if (!parsed.success) {
     throw new ApiError(502, 'INVALID_REPORT', 'Не удалось сформировать отчёт в ожидаемом формате.')
@@ -28,7 +40,7 @@ export async function buildReport(input: AnalysisRequest): Promise<InterviewResu
     throw new ApiError(502, 'INCOMPLETE_REPORT', 'В отчёте не хватает результатов по критериям вакансии.')
   }
 
-  return { mode: 'live', ...input, report: parsed.data }
+  return { mode: 'live', ...input, report: parsed.data, reportSource: 'rules' }
 }
 
 export async function processInterview(
