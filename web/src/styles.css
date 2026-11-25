@@ -169,7 +169,6 @@ button.link:hover:enabled { background: #d0ead3; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   scrollbar-gutter: stable;
   scrollbar-color: var(--assessment-accent) transparent;
   padding-inline-end: 4px;
