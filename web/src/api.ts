@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import {
-  archiveInterviewSchema, candidateDetailSchema, candidateOverviewSchema, candidateSchema, savedInterviewSchema,
-  type CandidateProfile, type CandidateStatus, type CandidateTarget, type SavedInterview,
+  archiveInterviewSchema, candidateDetailSchema, candidateOverviewSchema, candidateSchema, interviewDeletionSchema, savedInterviewSchema,
+  type CandidateMaterials, type CandidateProfile, type CandidateStatus, type CandidateTarget, type SavedInterview,
 } from '../../shared/archive'
-import { coachingResultSchema, roleReviewSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
+import { coachingResultSchema, roleReviewSchema, vacancyImportSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
 
 import { validateWav } from './intake/wav'
 
@@ -67,8 +67,8 @@ export function loadCandidates() {
   return typedRequest(z.array(candidateSchema), '/api/candidates')
 }
 
-export function createCandidate(id: string, profile: CandidateProfile) {
-  return typedRequest(candidateDetailSchema, '/api/candidates', jsonRequest('POST', { id, profile }))
+export function createCandidate(id: string, profile: CandidateProfile, materials: CandidateMaterials) {
+  return typedRequest(candidateDetailSchema, '/api/candidates', jsonRequest('POST', { id, profile, materials }))
 }
 
 export function loadCandidate(id: string) {
@@ -83,6 +83,15 @@ export function saveCandidateStatus(id: string, status: CandidateStatus) {
   return typedRequest(candidateDetailSchema, `/api/candidates/${id}/status`, jsonRequest('PATCH', { status }))
 }
 
+export async function deleteCandidate(id: string) {
+  await requestJson(`/api/candidates/${id}`, { method: 'DELETE' })
+}
+
+export function deleteInterview(id: string, removeCandidate: boolean) {
+  return typedRequest(interviewDeletionSchema, `/api/interviews/${id}?removeCandidate=${removeCandidate ? '1' : '0'}`,
+    { method: 'DELETE' })
+}
+
 export function loadInterview(id: string, signal?: AbortSignal) {
   return typedRequest(savedInterviewSchema, `/api/interviews/${id}`, { signal })
 }
@@ -94,6 +103,18 @@ export function saveInterviewTranscript(interview: SavedInterview, transcript: S
 
 export function reviewInterviewRoles(id: string, signal: AbortSignal) {
   return typedRequest(roleReviewSchema, `/api/interviews/${id}/review-roles`, { method: 'POST', signal })
+}
+
+export function importVacancy(text: string, signal: AbortSignal) {
+  return typedRequest(vacancyImportSchema, '/api/vacancies/import', jsonRequest('POST', { text }, signal))
+}
+
+export function saveCandidateResume(id: string, resume: NonNullable<CandidateMaterials['resume']>) {
+  return typedRequest(candidateDetailSchema, resumeUrl(id), jsonRequest('POST', resume))
+}
+
+export function resumeUrl(id: string) {
+  return `/api/candidates/${id}/resume`
 }
 
 export function recordingUrl(id: string) {

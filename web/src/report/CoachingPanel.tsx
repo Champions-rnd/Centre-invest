@@ -34,7 +34,9 @@ export function CoachingPanel({ state, segments, onJump, onRetry, formatTime }: 
 
   return (
     <aside className="panel coaching" aria-labelledby="coaching-title" aria-busy={state.status === 'loading'}>
-      <h3 id="coaching-title">Рекомендации для HR</h3>
+      <header className="coach-header">
+        <h3 id="coaching-title">Рекомендации для HR</h3>
+      </header>
       {state.status === 'loading' && <p className="muted" role="status">Готовим вопросы по расшифровке…</p>}
       {state.status === 'error' && <>
         <p role="alert">{state.message}</p>
@@ -44,6 +46,7 @@ export function CoachingPanel({ state, segments, onJump, onRetry, formatTime }: 
         <>
           <p className="muted coach-source">
             {state.result.source === 'rules' ? 'Подсказки по структуре разговора'
+              : state.result.source === 'chatci' ? 'Подготовлено ChatCI'
               : state.result.source === 'local' ? 'Подготовлено локальной ИИ-моделью' : 'Подготовлено подключённой ИИ-моделью'}
             {state.result.ruleSupplement && ' и дополнено правилами анализа диалога'}
           </p>

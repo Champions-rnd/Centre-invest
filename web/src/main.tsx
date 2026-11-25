@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { ArchiveInterview, Candidate, CandidateDetail, CandidateProfile, CandidateStatus, SavedInterview } from '../../shared/archive'
+import type { ArchiveInterview, Candidate, CandidateDetail, CandidateMaterials, CandidateProfile, CandidateStatus, SavedInterview } from '../../shared/archive'
 import type { Segment } from '../../shared/contracts'
 import {
-  archiveDownload, createCandidate, loadCandidate, loadCandidates, loadArchiveInterviews, loadInterview,
+  archiveDownload, createCandidate, deleteCandidate, deleteInterview, loadCandidate, loadCandidates, loadArchiveInterviews, loadInterview,
   saveCandidateStatus, saveInterviewTranscript, submitInterview,
 } from './api'
 import { ArchiveTables } from './archive/ArchiveTables'
@@ -11,6 +11,7 @@ import { CandidateDossier } from './archive/CandidateDossier'
 import { CandidateDirectory } from './archive/CandidateDirectory'
 import { CandidateProfileForm, type CandidateRecording } from './archive/CandidateProfileForm'
 import { Dashboard } from './archive/Dashboard'
+import { DeleteArchiveDialog } from './archive/DeleteArchiveDialog'
 import { InterviewForm } from './intake/InterviewForm'
 import './styles.css'
 import './archive/styles.css'
@@ -32,6 +33,7 @@ function App() {
   const [screen, setScreen] = useState<Screen>({ view: 'candidates' })
   const [archive, setArchive] = useState<ArchiveInterview[] | null>(null)
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
+  const [deletion, setDeletion] = useState<{ candidate: Candidate; interview?: { id: string; fileName: string } }>()
   const [uploadCandidateId, setUploadCandidateId] = useState('')
   const [pending, setPending] = useState('')
   const [error, setError] = useState('')
@@ -81,19 +83,20 @@ function App() {
     }
   }
 
-  function rememberCandidate({ interviews, ...candidate }: CandidateDetail) {
+  function rememberCandidate({ interviews, id, name, specialty, experience, salary, notes, status, interviewCount, latestAt }: CandidateDetail) {
+    const candidate = { id, name, specialty, experience, salary, notes, status, interviewCount, latestAt }
     setArchive(current => [...(current ?? []).filter(item => item.candidate.id !== candidate.id),
       ...interviews.map(item => ({ ...item, candidate }))])
     setCandidates(current => [...(current ?? []).filter(item => item.id !== candidate.id), candidate]
       .sort((a, b) => a.name.localeCompare(b.name, 'ru')))
   }
 
-  function saveCandidate(id: string, profile: CandidateProfile, recording?: CandidateRecording) {
+  function saveCandidate(id: string, profile: CandidateProfile, materials: CandidateMaterials, recording?: CandidateRecording) {
     if (busy) return
     void run(recording ? 'Загружаем WAV…' : 'Сохраняем карточку…', async () => {
-      const interview = recording && await submitInterview(recording.file, null, { profile, newCandidateId: id }, recording.uploadId,
+      const interview = recording && await submitInterview(recording.file, null, { profile, newCandidateId: id, materials }, recording.uploadId,
         percent => setPending(percent === null ? 'Распознаём интервью…' : `Загружаем WAV · ${percent}%`))
-      const candidate = interview ? await loadCandidate(interview.candidateId) : await createCandidate(id, profile)
+      const candidate = interview ? await loadCandidate(interview.candidateId) : await createCandidate(id, profile, materials)
       rememberCandidate(candidate)
       setScreen({ view: 'dossier', candidate, interview })
     })
@@ -113,6 +116,42 @@ function App() {
       setScreen({ view: 'dossier', candidate, interview, seek: startMs === undefined ? undefined : { ms: startMs } })
       requestAnimationFrame(() => document.getElementById('report-title')?.focus())
     })
+  }
+
+  function confirmRemoval() {
+    if (busy || !deletion) return
+    const { candidate: selected, interview } = deletion
+    setDeletion(undefined)
+    void run(interview ? 'Удаляем интервью…' : 'Удаляем кандидата…', async () => {
+      let candidate: CandidateDetail | null = null
+      if (interview) {
+        const remaining = await deleteInterview(interview.id, selected.interviewCount === 1)
+        candidate = remaining.candidate
+      } else {
+        await deleteCandidate(selected.id)
+      }
+      const candidateId = selected.id
+      if (candidate) {
+        rememberCandidate(candidate)
+      } else {
+        setCandidates(current => current?.filter(item => item.id !== candidateId) ?? null)
+        setArchive(current => current?.filter(item => item.candidate.id !== candidateId) ?? null)
+        setUploadCandidateId(current => current === candidateId ? '' : current)
+      }
+      setScreen(current => {
+        if (current.view !== 'dossier' || current.candidate.id !== candidateId) return current
+        if (!candidate) return { view: 'candidates' }
+        if (current.interview?.id === interview?.id) return { view: 'dossier', candidate }
+        return { ...current, candidate }
+      })
+      if (screen.view === 'dashboard' || screen.view === 'candidates') {
+        requestAnimationFrame(() => document.getElementById(heading)?.focus())
+      }
+    })
+  }
+
+  function removeInterview(id: string, fileName: string, candidate: Candidate) {
+    if (!busy) setDeletion({ candidate, interview: { id, fileName } })
   }
 
   function openUpload(candidateId = '') {
@@ -173,8 +212,6 @@ function App() {
           <div className="studio-context">
             {(screen.view === 'new-candidate' || screen.view === 'dossier') &&
               <button className="secondary" type="button" disabled={busy} onClick={goHome}>← К списку кандидатов</button>}
-            {(screen.view === 'candidates' || screen.view === 'dashboard' || screen.view === 'tables' || screen.view === 'upload') &&
-              <span>Подбор персонала</span>}
           </div>
           {(screen.view === 'candidates' || screen.view === 'dashboard' || screen.view === 'tables') &&
             <a className="action-link" href={archiveDownload()} download>Экспорт Excel</a>}
@@ -187,10 +224,11 @@ function App() {
               <button type="button" className="secondary" onClick={refresh}>Обновить архив</button>}
           </div>}
           <div hidden={screen.view !== 'candidates'}>{candidates
-            ? <CandidateDirectory candidates={candidates} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'new-candidate' })} />
+            ? <CandidateDirectory candidates={candidates} busy={busy} onOpen={openCandidate}
+              onDelete={candidate => { if (!busy) setDeletion({ candidate }) }} onAdd={() => navigate({ view: 'new-candidate' })} />
             : !error && <p role="status">Загружаем кандидатов…</p>}</div>
           <div hidden={screen.view !== 'dashboard'}>{archive
-            ? <Dashboard interviews={archive} busy={busy} onOpen={openCandidate} onAdd={() => navigate({ view: 'new-candidate' })} />
+            ? <Dashboard interviews={archive} busy={busy} onOpen={openCandidate} onDelete={removeInterview} onAdd={() => navigate({ view: 'new-candidate' })} />
             : !error && <p className="archive-feedback" role="status">Загружаем архив…</p>}</div>
           {screen.view === 'tables' && (candidates && archive
             ? <ArchiveTables candidates={candidates} interviews={archive} />
@@ -201,14 +239,20 @@ function App() {
               onSaved={interviewSaved} onOpen={openCandidate} />
           </div>
           {screen.view === 'new-candidate' && <CandidateProfileForm busy={busy} onSave={saveCandidate} />}
-          {screen.view === 'dossier' && <CandidateDossier candidate={screen.candidate} interview={screen.interview}
+          {screen.view === 'dossier' && <CandidateDossier key={screen.candidate.id} candidate={screen.candidate} interview={screen.interview}
             seek={screen.seek} busy={busy}
             onAdd={() => openUpload(screen.candidate.id)}
             onInterview={(id, startMs) => openInterview(screen.candidate, id, startMs)}
             onStatus={status => updateStatus(screen.candidate, status)}
-            onTranscript={updateTranscript} />}
+            onResume={candidate => {
+              setScreen(current => current.view === 'dossier' && current.candidate.id === candidate.id
+                ? { ...current, candidate: { ...current.candidate, resumeName: candidate.resumeName } } : current)
+            }}
+            onDelete={removeInterview} onTranscript={updateTranscript} />}
         </main>
       </div>
+      {deletion && <DeleteArchiveDialog fileName={deletion.interview?.fileName} candidate={deletion.candidate}
+        onCancel={() => setDeletion(undefined)} onConfirm={confirmRemoval} />}
     </div>
   )
 }

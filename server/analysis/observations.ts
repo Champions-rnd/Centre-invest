@@ -2,8 +2,10 @@ import type { AnswerObservation, Segment } from '../../shared/contracts'
 import { groupDialogue } from '../../shared/dialogue'
 
 const questionCue = /\?|^(?:расскажите|опишите|объясните|приведите|как\s|почему\s|что\s|сколько\s)/iu
-const openQuestion = /^(?:а\s+)?(?:расскажите|опишите|объясните|приведите|как\s|почему\s|что\s|каким\s)/iu
-const outcomeCue = /результат|метрик|обратн\p{L}* связ|удалось|изменил|эффект/iu
+const outcomeCue = /результат|метрик|эффект|показател|как оценивал/iu
+const exampleCue = /пример|что (?:именно )?вы сделали|в ч[её]м (?:был )?ваш вклад/iu
+const noOutcome = /(?:результат\p{L}*|эффект\p{L}*|показател\p{L}*) (?:мы )?не (?:измерял\p{L}*|фиксировал\p{L}*|отслеживал\p{L}*)|не (?:измерял\p{L}*|фиксировал\p{L}*|отслеживал\p{L}*) (?:результат\p{L}*|эффект\p{L}*|показател\p{L}*)/iu
+const noExample = /не могу (?:назвать|привести|вспомнить) (?:конкретный )?пример|не помню (?:конкретный )?пример/iu
 const metric = /\d+[.,]?\d*\s*(?:%|процент|пользовател|участник|сценари|час|дне(?:й|в)|минут|клиент|заяв)/iu
 const sequence = /сначала[^.!?]{0,140}(?:затем|потом|после этого)|потому что|в результате|поэтому/iu
 
@@ -42,17 +44,18 @@ export function transcriptObservations(transcript: Segment[]): AnswerObservation
       text: 'Кандидат связывает мысли в ответе с помощью последовательности действий или объяснения причины.',
     })
 
-    const linked = links.get(first.id)
-    const question = linked && byId.get(linked[0])
-    if (!question) continue
-    const count = text.split(/\s+/u).length
-    if (count <= 10 && openQuestion.test(question.text.trim())) add({
-      kind: 'improvement', aspect: 'relevance', evidenceIds: [question.id, first.id],
-      text: 'Ответ на открытый вопрос короткий. Попросите раскрыть, что именно кандидат сделал и почему.',
+    const questions = (links.get(first.id) ?? []).map(id => byId.get(id)!)
+    const outcomeQuestion = questions.find(segment => outcomeCue.test(segment.text))
+    const outcomeAnswer = turn.find(segment => noOutcome.test(segment.text))
+    if (outcomeQuestion && outcomeAnswer) add({
+      kind: 'improvement', aspect: 'outcome', evidenceIds: [outcomeQuestion.id, outcomeAnswer.id],
+      text: 'На вопрос о результате кандидат сообщил, что его не измеряли или не отслеживали. В этом примере неясно, как проверяли эффект работы.',
     })
-    if (outcomeCue.test(question.text) && !metric.test(text) && !outcomeCue.test(text)) add({
-      kind: 'improvement', aspect: 'outcome', evidenceIds: [question.id, first.id],
-      text: 'Стоит уточнить, чем закончилась работа и по каким признакам кандидат оценивал результат.',
+    const exampleQuestion = questions.find(segment => exampleCue.test(segment.text))
+    const exampleAnswer = turn.find(segment => noExample.test(segment.text))
+    if (exampleQuestion && exampleAnswer) add({
+      kind: 'improvement', aspect: 'detail', evidenceIds: [exampleQuestion.id, exampleAnswer.id],
+      text: 'HR попросил конкретный пример, но кандидат сказал, что не может его привести или вспомнить.',
     })
   }
   return observations

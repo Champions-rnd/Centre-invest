@@ -1,5 +1,6 @@
+import { SelectField } from '../ui/SelectField'
 import { useState } from 'react'
-import { candidateStatuses, type Candidate, type CandidateStatus } from '../../../shared/archive'
+import { candidateStatuses, type Candidate } from '../../../shared/archive'
 import { formatDate } from './format'
 
 type Props = {
@@ -7,6 +8,7 @@ type Props = {
   busy: boolean
   onOpen: (id: string) => void
   onAdd: () => void
+  onDelete: (candidate: Candidate) => void
 }
 
 const byName = new Intl.Collator('ru')
@@ -17,7 +19,7 @@ export function initials(name: string) {
   return name.split(/\s+/u).slice(0, 2).map(part => Array.from(part)[0]).join('').toLocaleUpperCase('ru')
 }
 
-export function CandidateDirectory({ candidates, busy, onOpen, onAdd }: Props) {
+export function CandidateDirectory({ candidates, busy, onOpen, onAdd, onDelete }: Props) {
   const [query, setQuery] = useState('')
   const [specialty, setSpecialty] = useState('')
   const [status, setStatus] = useState('')
@@ -57,22 +59,16 @@ export function CandidateDirectory({ candidates, busy, onOpen, onAdd }: Props) {
       <section className="panel workspace-roster" aria-labelledby="roster-title">
         <div className="roster-heading">
           <h2 id="roster-title">Личные дела</h2>
-          {candidates.length > 0 && <p className="muted">Показано {matches.length} из {candidates.length}</p>}
         </div>
         {!!candidates.length && <div className="roster-tools">
           <label>Поиск<input type="search" placeholder="Имя, специальность или заметка" value={query} onChange={event => setQuery(event.target.value)} /></label>
-          <label>Специальность<select aria-label="Специальность" value={specialty} onChange={event => setSpecialty(event.target.value)}>
-            <option value="">Все специальности</option>
-            {specialties.map(([name, count]) => <option value={name} key={name}>{name} ({count})</option>)}
-          </select></label>
-          <label>Статус<select aria-label="Статус" value={status} onChange={event => setStatus(event.target.value)}>
-            <option value="">Все статусы</option>
-            {(Object.entries(candidateStatuses) as [CandidateStatus, string][]).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            <option value="no-interview">Без интервью</option>
-          </select></label>
-          <label>Сортировка<select aria-label="Сортировка" value={sort} onChange={event => setSort(event.target.value as CandidateOrder)}>
-            {Object.entries(sortLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </select></label>
+          <SelectField label="Специальность" value={specialty} onChange={setSpecialty}
+            options={[{ value: '', label: 'Все специальности' }, ...specialties.map(([value, count]) => ({ value, label: `${value} (${count})` }))]} />
+          <SelectField label="Статус" value={status} onChange={setStatus}
+            options={[{ value: '', label: 'Все статусы' }, ...Object.entries(candidateStatuses).map(([value, label]) => ({ value, label })),
+              { value: 'no-interview', label: 'Без интервью' }]} />
+          <SelectField label="Сортировка" value={sort} onChange={value => setSort(value as CandidateOrder)}
+            options={Object.entries(sortLabels).map(([value, label]) => ({ value, label }))} />
         </div>}
         {matches.length ? <table className="roster-table">
           <thead><tr><th scope="col">Кандидат</th><th scope="col">Статус</th><th scope="col">Интервью</th><th scope="col">Действие</th></tr></thead>
@@ -86,8 +82,13 @@ export function CandidateDirectory({ candidates, busy, onOpen, onAdd }: Props) {
               </th>
               <td><span className="candidate-status" data-status={candidate.status}>{candidateStatuses[candidate.status]}</span></td>
               <td><strong>{candidate.interviewCount}</strong><small>{candidate.latestAt ? formatDate(candidate.latestAt) : 'Записей пока нет'}</small></td>
-              <td><button className="secondary roster-open" disabled={busy} type="button"
-                aria-label={`Открыть личное дело: ${candidate.name}`} onClick={() => onOpen(candidate.id)}>Открыть <span aria-hidden="true">›</span></button></td>
+              <td><div className="roster-row-actions">
+                <button className="secondary roster-open" disabled={busy} type="button"
+                  aria-label={`Открыть личное дело: ${candidate.name}`} onClick={() => onOpen(candidate.id)}>Открыть <span aria-hidden="true">›</span></button>
+                <button className="secondary interview-delete" disabled={busy} type="button"
+                  aria-label={`Удалить кандидата: ${candidate.name}`} title="Удалить кандидата"
+                  onClick={() => onDelete(candidate)}>×</button>
+              </div></td>
             </tr>
           ))}</tbody>
         </table> : <div className="workspace-empty">

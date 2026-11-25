@@ -1,5 +1,6 @@
+import { SelectField } from '../ui/SelectField'
 import { useState } from 'react'
-import { candidateStatuses, type ArchiveInterview, type CandidateStatus } from '../../../shared/archive'
+import { candidateStatuses, type ArchiveInterview, type Candidate, type CandidateStatus } from '../../../shared/archive'
 import { formatCount, formatDate } from './format'
 import { InterviewSort, sortInterviews, type InterviewOrder } from './InterviewSort'
 
@@ -8,9 +9,10 @@ type Props = {
   busy: boolean
   onOpen: (candidateId: string, interviewId?: string) => void
   onAdd: () => void
+  onDelete: (id: string, fileName: string, candidate: Candidate) => void
 }
 
-export function Dashboard({ interviews, busy, onOpen, onAdd }: Props) {
+export function Dashboard({ interviews, busy, onOpen, onAdd, onDelete }: Props) {
   const [query, setQuery] = useState('')
   const [specialty, setSpecialty] = useState('')
   const [status, setStatus] = useState<CandidateStatus | ''>('')
@@ -23,51 +25,49 @@ export function Dashboard({ interviews, busy, onOpen, onAdd }: Props) {
 
   return (
     <section className="interview-dashboard" aria-labelledby="archive-title">
-      <div className="list-heading">
+      <header className="directory-heading">
         <div>
           <h1 id="archive-title" tabIndex={-1}>Интервью</h1>
-          <p className="muted">Показано {filtered.length} из {interviews.length}</p>
+          <p>Записи и расшифровки собеседований.</p>
         </div>
-        <InterviewSort value={sort} onChange={setSort} />
-      </div>
+        {interviews.length > 0 && <InterviewSort value={sort} onChange={setSort} />}
+      </header>
       {interviews.length > 0 && <div className="archive-toolbar">
         <label className="filter-search">Поиск
           <input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Кандидат, специальность или файл" />
         </label>
-        <label className="sort-field">Специальность
-          <select value={specialty} onChange={event => setSpecialty(event.target.value)}>
-            <option value="">Все специальности</option>
-            {specialties.map(name => <option key={name}>{name}</option>)}
-          </select>
-        </label>
-        <label className="sort-field">Статус личного дела
-          <select value={status} onChange={event => setStatus(event.target.value as CandidateStatus | '')}>
-            <option value="">Все статусы</option>
-            {Object.entries(candidateStatuses).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          </select>
-        </label>
+        <SelectField className="sort-field" label="Специальность" value={specialty} onChange={setSpecialty}
+          options={[{ value: '', label: 'Все специальности' }, ...specialties.map(name => ({ value: name, label: name }))]} />
+        <SelectField className="sort-field" label="Статус личного дела" value={status}
+          onChange={value => setStatus(value as CandidateStatus | '')}
+          options={[{ value: '', label: 'Все статусы' }, ...Object.entries(candidateStatuses).map(([value, label]) => ({ value, label }))]} />
       </div>}
       {filtered.length ? <ul className="candidate-grid">
         {filtered.map(({ candidate, id, fileName, segmentCount, createdAt }) => (
-          <li key={id} className="panel candidate-card">
-            <div className="candidate-card-top">
+          <li key={id} className="panel candidate-card interview-card">
+            <div className="interview-card-header">
+              <div>
+                <h3 className="interview-card-title">{fileName}</h3>
+                <p className="muted candidate-meta">{candidate.name}</p>
+              </div>
+              <button className="secondary interview-delete" type="button" disabled={busy}
+                aria-label={`Удалить интервью: ${fileName}`} title="Удалить интервью"
+                onClick={() => onDelete(id, fileName, candidate)}>×</button>
+            </div>
+            <div className="interview-card-details">
               <span className="specialty-label">{candidate.specialty}</span>
               <span className="candidate-status" data-status={candidate.status}>{candidateStatuses[candidate.status]}</span>
             </div>
-            <div>
-              <h3 className="interview-card-title">{fileName}</h3>
-              <p className="muted candidate-meta">{candidate.name}</p>
-            </div>
             <div className="candidate-card-bottom">
-              <div>
+              <p className="interview-card-meta">
                 <strong>{formatCount(segmentCount, ['фрагмент', 'фрагмента', 'фрагментов'])}</strong>
-                <small className="muted">{formatDate(createdAt)}</small>
-              </div>
+                <time className="muted" dateTime={createdAt}>{formatDate(createdAt)}</time>
+              </p>
               <div className="interview-card-actions">
-                <button className="secondary" type="button" disabled={busy} aria-label={`Открыть личное дело: ${candidate.name}`}
-                  onClick={() => onOpen(candidate.id)}>Личное дело</button>
                 <button type="button" disabled={busy} aria-label={`Открыть интервью: ${fileName}`}
                   onClick={() => onOpen(candidate.id, id)}>Открыть</button>
+                <button className="secondary" type="button" disabled={busy} aria-label={`Открыть личное дело: ${candidate.name}`}
+                  onClick={() => onOpen(candidate.id)}>Личное дело</button>
               </div>
             </div>
           </li>

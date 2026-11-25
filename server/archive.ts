@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import type { ArchiveInterview, Candidate, CandidateDetail, CandidateProfile, CandidateStatus, CandidateTarget, InterviewSummary, SavedInterview } from '../shared/archive'
-import { resultSchema, type InterviewResult } from '../shared/contracts'
+import type { ArchiveInterview, Candidate, CandidateDetail, CandidateMaterials, CandidateProfile, CandidateStatus, CandidateTarget, InterviewSummary, SavedInterview } from '../shared/archive'
+import { resultSchema, vacancySchema, type InterviewResult } from '../shared/contracts'
 import { ApiError } from './errors'
 
 type InterviewRow = Omit<SavedInterview, 'result'> & { resultJson: string }
@@ -35,12 +35,17 @@ export function openArchive() {
   const db = new DatabaseSync(path, { timeout: 5000 })
   db.exec(`
     PRAGMA foreign_keys = ON;
+    PRAGMA secure_delete = ON;
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS candidates (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL, specialty TEXT NOT NULL,
       experience TEXT NOT NULL, salary TEXT NOT NULL, notes TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'review', 'verified'))
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS candidate_materials (
+      candidate_id TEXT PRIMARY KEY REFERENCES candidates(id),
+      vacancy_json TEXT, resume_name TEXT, resume BLOB
     ) STRICT;
     CREATE TABLE IF NOT EXISTS interviews (
       id TEXT PRIMARY KEY,
@@ -67,7 +72,12 @@ export function openArchive() {
     if (!row) throw new ApiError(404, 'CANDIDATE_NOT_FOUND', 'Кандидат не найден.')
     const interviews = db.prepare(`SELECT ${interviewColumns} FROM interviews
       WHERE candidate_id = ? ORDER BY created_at DESC, id`).all(id) as unknown as CandidateDetail['interviews']
-    return { ...row, interviews }
+    const materials = db.prepare('SELECT vacancy_json, resume_name FROM candidate_materials WHERE candidate_id = ?').get(id)
+    return {
+      ...row, interviews,
+      vacancy: typeof materials?.vacancy_json === 'string' ? vacancySchema.parse(JSON.parse(materials.vacancy_json)) : null,
+      ...(typeof materials?.resume_name === 'string' && { resumeName: materials.resume_name }),
+    }
   }
 
   function interview(id: string): SavedInterview {
@@ -81,9 +91,14 @@ export function openArchive() {
     if (row) return decodeInterview(row)
   }
 
-  function insertCandidate(id: string, { name, specialty, experience, salary, notes }: CandidateProfile) {
-    db.prepare(`INSERT INTO candidates (id, name, specialty, experience, salary, notes)
+  function insertCandidate(id: string, { name, specialty, experience, salary, notes }: CandidateProfile, materials?: CandidateMaterials) {
+    const inserted = db.prepare(`INSERT INTO candidates (id, name, specialty, experience, salary, notes)
       VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).run(id, name, specialty, experience, salary, notes)
+    if (inserted.changes && materials && (materials.vacancy || materials.resume)) {
+      db.prepare('INSERT INTO candidate_materials (candidate_id, vacancy_json, resume_name, resume) VALUES (?, ?, ?, ?)')
+        .run(id, materials.vacancy && JSON.stringify(materials.vacancy), materials.resume?.fileName ?? null,
+          materials.resume ? Buffer.from(materials.resume.base64, 'base64') : null)
+    }
   }
 
   function saveInterview(target: CandidateTarget, file: Express.Multer.File, result: InterviewResult, id: string = randomUUID()): SavedInterview {
@@ -98,7 +113,7 @@ export function openArchive() {
         return saved
       }
       if ('profile' in target) {
-        insertCandidate(candidateId, target.profile)
+        insertCandidate(candidateId, target.profile, target.materials)
       } else {
         candidate(candidateId)
       }
@@ -114,11 +129,38 @@ export function openArchive() {
     return { id, candidateId, fileName, createdAt: now, updatedAt: now, segmentCount: result.transcript.length, result }
   }
 
+  function deleteCandidateData(id: string) {
+    db.prepare('DELETE FROM candidate_materials WHERE candidate_id = ?').run(id)
+    db.prepare('DELETE FROM candidates WHERE id = ?').run(id)
+  }
+
   return {
     listCandidates,
-    createCandidate(id: string, profile: CandidateProfile) {
-      insertCandidate(id, profile)
+    createCandidate(id: string, profile: CandidateProfile, materials?: CandidateMaterials) {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        insertCandidate(id, profile, materials)
+        const detail = candidate(id)
+        db.exec('COMMIT')
+        return detail
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+    },
+    saveResume(id: string, resume: NonNullable<CandidateMaterials['resume']>) {
+      candidate(id)
+      db.prepare(`INSERT INTO candidate_materials (candidate_id, resume_name, resume) VALUES (?, ?, ?)
+        ON CONFLICT(candidate_id) DO UPDATE SET resume_name = excluded.resume_name, resume = excluded.resume`)
+        .run(id, resume.fileName, Buffer.from(resume.base64, 'base64'))
       return candidate(id)
+    },
+    candidateResume(id: string) {
+      const row = db.prepare('SELECT resume_name, resume FROM candidate_materials WHERE candidate_id = ?').get(id)
+      if (!row || typeof row.resume_name !== 'string' || !(row.resume instanceof Uint8Array)) {
+        throw new ApiError(404, 'RESUME_NOT_FOUND', 'Резюме не найдено.')
+      }
+      return { name: row.resume_name, bytes: Buffer.from(row.resume) }
     },
     listInterviews(): ArchiveInterview[] {
       const candidates = new Map(listCandidates().map(profile => [profile.id, profile]))
@@ -137,6 +179,49 @@ export function openArchive() {
       const updated = db.prepare('UPDATE candidates SET status = ? WHERE id = ?').run(status, id)
       if (!updated.changes) throw new ApiError(404, 'CANDIDATE_NOT_FOUND', 'Кандидат не найден.')
       return candidate(id)
+    },
+    deleteCandidate(id: string) {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        if (!db.prepare('SELECT 1 FROM candidates WHERE id = ?').get(id)) {
+          throw new ApiError(404, 'CANDIDATE_NOT_FOUND', 'Кандидат не найден.')
+        }
+        db.prepare('DELETE FROM recordings WHERE interview_id IN (SELECT id FROM interviews WHERE candidate_id = ?)').run(id)
+        db.prepare('DELETE FROM interviews WHERE candidate_id = ?').run(id)
+        deleteCandidateData(id)
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+    },
+    deleteInterview(id: string, removeCandidate: boolean) {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        const stored = db.prepare('SELECT candidate_id FROM interviews WHERE id = ?').get(id)
+        if (!stored || typeof stored.candidate_id !== 'string') {
+          throw new ApiError(404, 'INTERVIEW_NOT_FOUND', 'Интервью не найдено.')
+        }
+        const candidateId = stored.candidate_id
+        const hasOtherInterview = Boolean(db.prepare('SELECT 1 FROM interviews WHERE candidate_id = ? AND id <> ? LIMIT 1')
+          .get(candidateId, id))
+        if (removeCandidate === hasOtherInterview) {
+          throw new ApiError(409, 'DELETE_SCOPE_CHANGED', 'Количество интервью изменилось. Обновите страницу и подтвердите удаление заново.')
+        }
+        db.prepare('DELETE FROM recordings WHERE interview_id = ?').run(id)
+        db.prepare('DELETE FROM interviews WHERE id = ?').run(id)
+        let detail = null
+        if (removeCandidate) {
+          deleteCandidateData(candidateId)
+        } else {
+          detail = candidate(candidateId)
+        }
+        db.exec('COMMIT')
+        return { candidateId, candidate: detail }
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
     },
     saveTranscript(id: string, previous: string, result: InterviewResult) {
       const now = new Date(Math.max(Date.now(), Date.parse(previous) + 1)).toISOString()

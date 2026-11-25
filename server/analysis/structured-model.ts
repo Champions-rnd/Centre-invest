@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import type { coachProvider } from './local-coach'
+import type { chatciTextProvider } from '../chatci'
 
 export async function generate<T>(
-  provider: NonNullable<Awaited<ReturnType<typeof coachProvider>>>,
+  provider: NonNullable<Awaited<ReturnType<typeof coachProvider>> | ReturnType<typeof chatciTextProvider>>,
   signal: AbortSignal,
   prompt: string,
   content: string,
@@ -10,6 +11,9 @@ export async function generate<T>(
   maxTokens: number,
   schemaName = 'interview_recommendations',
 ) {
+  const shape = z.toJSONSchema(schema)
+  const chatci = provider.source === 'chatci'
+  const system = chatci ? prompt + '\nВерни объект JSON по этой схеме: ' + JSON.stringify(shape) : prompt
   const response = await fetch(provider.baseUrl + '/chat/completions', {
     method: 'POST',
     redirect: 'error',
@@ -22,10 +26,10 @@ export async function generate<T>(
       model: provider.model,
       temperature: 0.1,
       max_tokens: maxTokens,
-      messages: [{ role: 'system', content: prompt }, { role: 'user', content }],
-      response_format: {
+      messages: [{ role: 'system', content: system }, { role: 'user', content }],
+      response_format: chatci ? { type: 'json_object' } : {
         type: 'json_schema',
-        json_schema: { name: schemaName, schema: z.toJSONSchema(schema), strict: true },
+        json_schema: { name: schemaName, schema: shape, strict: true },
       },
     }),
   })

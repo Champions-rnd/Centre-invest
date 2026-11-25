@@ -36,9 +36,8 @@
   overflow-wrap: anywhere;
 }
 .archive-intro h1 { margin-bottom: 8px; }
-.list-heading { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 12px; margin: 0 0 13px; }
 .interview-history h2 { font-size: 1.25rem; letter-spacing: -.02em; }
-.list-heading p, .sort-field, .filter-search { font-size: .86rem; color: var(--muted); }
+.sort-field, .filter-search { font-size: .86rem; color: var(--muted); }
 .sort-field, .filter-search { display: grid; gap: 4px; font-weight: 650; }
 .sort-field select { background: #fff; font-weight: 500; }
 .candidate-grid {
@@ -52,17 +51,13 @@
 }
 .candidate-card { min-height: 208px; display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow-wrap: anywhere; }
 .candidate-card:hover { border-color: #a4c5ac; }
-.candidate-card-top, .candidate-card-bottom { display: flex; align-items: center; gap: 8px; }
-.candidate-card-top, .candidate-card-bottom { justify-content: space-between; }
-.candidate-card-top { align-items: start; }
 .specialty-label, .candidate-status { font-size: .74rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
 .specialty-label { color: var(--green-dark); background: #e9f4eb; }
 .candidate-status { color: #435e50; background: #edf3ef; text-align: right; }
 .candidate-status[data-status="review"] { background: #fff3d9; color: #765018; }
 .candidate-status[data-status="verified"] { background: #dbf1e1; color: #14572c; }
 .candidate-meta, .candidate-card-bottom { font-size: .84rem; }
-.candidate-card-bottom { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
-.candidate-card-bottom small { display: block; }
+.candidate-card-bottom { display: grid; gap: 10px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 .candidate-card-bottom button { min-height: 37px; padding: 6px 10px; flex-shrink: 0; }
 .archive-empty { min-height: 210px; display: grid; justify-items: start; align-content: center; gap: 8px; }
 
@@ -82,7 +77,7 @@
 .dossier-actions { justify-content: flex-end; align-items: end; }
 .dossier-notes { max-width: 64ch; white-space: pre-wrap; margin-top: 8px; }
 .interview-history ul { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; }
-.interview-history li button {
+.interview-history li button[aria-pressed] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -107,7 +102,6 @@
 }
 
 .interview-dashboard, .upload-screen { margin-top: 24px; }
-.interview-dashboard .list-heading h1 { margin-bottom: 6px; }
 .archive-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
@@ -115,9 +109,10 @@
   margin-bottom: 14px;
 }
 .archive-toolbar .filter-search { margin: 0; }
-.interview-dashboard .candidate-card { min-height: 165px; }
-.interview-card-title { overflow-wrap: anywhere; margin-bottom: 4px; }
-.interview-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.interview-card-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.interview-card-title { overflow-wrap: anywhere; margin-bottom: 3px; }
+.interview-card-details, .interview-card-actions, .interview-card-meta { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; }
+.interview-card-details .candidate-status { white-space: nowrap; }
 .history-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 8px; }
 
 @media (max-width: 620px) {
@@ -141,21 +136,62 @@
 .directory-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .directory-search { min-width: min(280px, 100%); }
 .candidate-attachments { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-.candidate-file-import {
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #f5faf6;
+.candidate-file-import { position: relative; min-width: 0; }
+.picker-input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
 }
-.candidate-file-import > label { font-weight: 650; }
-.candidate-file-import > p { font-size: .86rem; }
-.candidate-file-import input[type="file"] { max-width: 100%; background: #fff; }
-.candidate-file-import > button { justify-self: start; }
+.picker-target {
+  min-height: 144px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 14px 10px;
+  text-align: center;
+  border: 1px dashed #9fb6a5;
+  border-radius: 14px;
+  background: #f5faf6;
+  cursor: pointer;
+}
+.picker-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #e4f0e5;
+  color: var(--green-dark);
+  font-size: 1.2rem;
+}
+.picker-target .muted { font-size: .85rem; font-weight: 400; }
+.picker-input:enabled + .picker-target:hover, .candidate-file-import.dragging .picker-target {
+  border-color: var(--green);
+  background: #eaf5ec;
+}
+.picker-input:focus-visible + .picker-target { outline: 2px solid var(--green-dark); outline-offset: 2px; }
+.picker-input:disabled + .picker-target { opacity: .65; cursor: default; }
+.picker-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 7px;
+}
+.picker-selection p { min-width: 0; overflow-wrap: anywhere; font-size: .85rem; }
+.candidate-file-import > .error { margin-top: 6px; }
 @media (max-width: 590px) { .candidate-attachments { grid-template-columns: 1fr; } }
 
-.candidate-file-import.dragging { border-color: var(--green); background: #e8f3e9; }
-.candidate-file-import .selected-file-name { overflow-wrap: anywhere; }
-.home-upload .candidate-file-import input[type="file"] { width: 100%; }
+.interview-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+button.secondary.interview-delete {
+  display: grid; place-items: center;
+  min-width: 34px; min-height: 34px; padding: 0;
+  border-radius: 10px; color: #8a382f;
+  font-size: 1.2rem; line-height: 1;
+}
+button.secondary.interview-delete:hover:enabled { background: #fff0ee; border-color: #cf938b; }

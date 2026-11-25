@@ -7,6 +7,9 @@ function formatSheet(sheet: ExcelJS.Worksheet) {
   header.font = { bold: true, color: { argb: 'FFFFFFFF' } }
   header.alignment = { vertical: 'middle', wrapText: true }
   header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF006B40' } }
+  for (const column of sheet.columns.slice(1)) {
+    column.border = { left: { style: 'thin', color: { argb: 'FFDCE8DE' } } }
+  }
   sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sheet.columns.length } }
 }
 

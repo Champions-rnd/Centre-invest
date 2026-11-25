@@ -1,3 +1,4 @@
+import { SelectField } from '../ui/SelectField'
 import type { InterviewSummary } from '../../../shared/archive'
 
 const options = {
@@ -22,9 +23,7 @@ export function sortInterviews<T extends InterviewSummary>(items: T[], order: In
 }
 
 export function InterviewSort({ value, onChange }: { value: InterviewOrder; onChange: (order: InterviewOrder) => void }) {
-  return <label className="sort-field">Сортировка интервью
-    <select value={value} onChange={event => onChange(event.target.value as InterviewOrder)}>
-      {Object.entries(options).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-    </select>
-  </label>
+  return <SelectField label="Сортировка интервью" className="sort-field" value={value}
+    onChange={value => onChange(value as InterviewOrder)}
+    options={Object.entries(options).map(([value, label]) => ({ value, label }))} />
 }

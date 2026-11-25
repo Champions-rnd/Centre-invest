@@ -1,9 +1,11 @@
+import { SelectField } from '../ui/SelectField'
 import { useRef, useState, type FormEvent } from 'react'
 import { candidateTargetSchema, type Candidate, type CandidateTarget, type SavedInterview } from '../../../shared/archive'
-import { MAX_AUDIO_MB, vacancySchema, type Vacancy } from '../../../shared/contracts'
+import { MAX_AUDIO_MB, type Vacancy } from '../../../shared/contracts'
 import { submitInterview } from '../api'
 import { CandidateProfileFields, readCandidateProfile } from '../archive/CandidateProfileForm'
 import { FilePicker } from './FilePicker'
+import { readVacancy, VacancyFields, vacancyError } from './VacancyFields'
 import { createUploadId } from './uploadId'
 import { isSupportedWav, wavAccept } from './wav'
 import './styles.css'
@@ -42,18 +44,10 @@ function CandidateFields({ candidates, prefix, value, onChange }: {
   const selected = value ?? localId
   return (
     <div className="vacancy-grid">
-      <label className="profile-notes">Кандидат
-        <select name={prefix + 'candidate'} value={selected} onChange={event => {
-          const id = event.target.value
-          if (onChange) onChange(id)
-          else setLocalId(id)
-        }}>
-          <option value="">Новый кандидат</option>
-          {candidates.map(candidate => (
-            <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.specialty}</option>
-          ))}
-        </select>
-      </label>
+      <SelectField className="profile-notes" label="Кандидат" name={prefix + 'candidate'} value={selected}
+        onChange={onChange ?? setLocalId}
+        options={[{ value: '', label: 'Новый кандидат' },
+          ...candidates.map(candidate => ({ value: candidate.id, label: `${candidate.name} · ${candidate.specialty}` }))]} />
       {!selected && <CandidateProfileFields prefix={prefix} />}
     </div>
   )
@@ -121,11 +115,9 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
     event.preventDefault()
     if (running.current || !files.length) return
     const fields = new FormData(event.currentTarget)
-    const description = String(fields.get('description') ?? '').trim()
-    const criteria = String(fields.get('criteria') ?? '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
-    const vacancy = vacancySchema.nullable().safeParse(description || criteria.length ? { description, criteria } : null)
+    const vacancy = readVacancy(fields)
     if (!vacancy.success) {
-      setError('Укажите до 20 тем по одному пункту на строку. Максимум 300 символов на тему.')
+      setError(vacancyError)
       return
     }
     const common = attachTo ? { candidateId: attachTo } : separateTargets ? undefined : readTarget(fields, 'batch-')
@@ -153,16 +145,15 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
   }
 
   return (
-    <section className="panel home-upload" aria-labelledby="intake-title">
-      <div className="section-head">
-        <h2 id="intake-title" tabIndex={-1}>Загрузка интервью</h2>
+    <section className="home-upload" aria-labelledby="intake-title">
+      <header className="directory-heading"><div>
+        <h1 id="intake-title" tabIndex={-1}>Загрузка интервью</h1>
         {selectedCandidate && <p><strong>{selectedCandidate.name}</strong> · {selectedCandidate.specialty}</p>}
-        <p className="muted">Выберите один или несколько WAV. Расшифровки сохранятся в личных делах кандидатов.</p>
-      </div>
-      <form onSubmit={handleSubmit}>
+      </div></header>
+      <form className="panel" onSubmit={handleSubmit}>
         <fieldset disabled={active}>
           <FilePicker id="interview-wav" label="Интервью из WAV" accept={wavAccept} multiple disabled={active}
-            help={`До ${MAX_AUDIO_MB} МБ на файл. Можно перетащить WAV сюда.`} onFiles={selectFiles} />
+            help={`WAV · до ${MAX_AUDIO_MB} МБ на файл`} onFiles={selectFiles} />
           {files.length > 0 && <>
             {!attachTo && files.length > 1 && <label className="upload-mode">
               <input type="checkbox" checked={separateTargets} onChange={event => setSeparate(event.target.checked)} />
@@ -183,10 +174,7 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
             {!attachTo && !separateTargets && <CandidateFields candidates={candidates} prefix="batch-" value={candidateId} onChange={onCandidate} />}
             <details className="upload-extra">
               <summary>Общий контекст вакансии <span className="muted">Необязательно</span></summary>
-              <div className="vacancy-grid">
-                <label>Описание вакансии <textarea name="description" maxLength={12000} rows={3} /></label>
-                <label>Темы для проверки <textarea name="criteria" placeholder="По одной теме на строку" rows={3} /></label>
-              </div>
+              <VacancyFields />
             </details>
             <button type="submit">Расшифровать и сохранить ({files.length})</button>
           </>}

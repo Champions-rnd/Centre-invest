@@ -32,13 +32,16 @@ export function FilePicker({ id, label, help, accept, multiple, disabled, onFile
         setDragging(false)
         select(event.dataTransfer.files)
       }}>
-      <label htmlFor={id}>{label}</label>
-      <p className="muted" id={id + '-help'}>{help}</p>
-      <input id={id} type="file" accept={accept} multiple={multiple} disabled={disabled} aria-describedby={id + '-help'}
-        onChange={event => {
+      <input className="picker-input" id={id} type="file" accept={accept} multiple={multiple} disabled={disabled}
+        aria-describedby={id + '-help'} onChange={event => {
           select(event.currentTarget.files)
           event.currentTarget.value = ''
         }} />
+      <label className="picker-target" htmlFor={id}>
+        <span className="picker-icon" aria-hidden="true">↑</span>
+        <strong>{label}</strong>
+        <span className="muted" id={id + '-help'}>{help}</span>
+      </label>
       {children}
     </div>
   )

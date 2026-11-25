@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
 export const MAX_AUDIO_MB = 40
+export const MAX_VACANCY_TEXT_BYTES = 128 * 1024
+
+export const vacancyImportSchema = z.object({
+  specialty: z.string().trim().max(120),
+  description: z.string().trim().max(12_000),
+  criteria: z.array(z.string().trim().min(1).max(300)).max(20),
+})
 
 export const vacancySchema = z.object({
   description: z.string().trim().max(12_000),
@@ -56,15 +63,15 @@ export const recommendationSchema = z.object({
 })
 export const observationSchema = z.object({
   kind: z.enum(['strength', 'improvement']),
-  aspect: z.enum(['clarity', 'relevance', 'detail', 'outcome']),
+  aspect: z.enum(['clarity', 'relevance', 'detail', 'outcome', 'fillers', 'pauses', 'vacancy']),
   text: z.string().trim().min(8).max(300),
   evidenceIds: z.array(z.string().min(1)).min(1).max(3),
 })
 export const coachingResultSchema = z.object({
-  source: z.enum(['local', 'configured', 'rules']),
+  source: z.enum(['local', 'configured', 'chatci', 'rules']),
   ruleSupplement: z.boolean().default(false),
   recommendations: z.array(recommendationSchema).max(12),
-  observations: z.array(observationSchema).max(6).default([]),
+  observations: z.array(observationSchema).max(12).default([]),
 })
 
 export const resultSchema = z.object({

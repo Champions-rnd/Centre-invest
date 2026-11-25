@@ -88,7 +88,7 @@
 .studio .frame { width: min(1280px, calc(100% - clamp(28px, 6vw, 80px))); }
 .studio .panel { border-radius: 20px; }
 .studio button.secondary, .studio .action-link { border-color: var(--control-line); }
-.studio select, .studio textarea, .studio input[type="search"] { background: #fff; border-color: var(--control-line); }
+.studio textarea, .studio input[type="search"] { background: #fff; border-color: var(--control-line); }
 .studio :is(.directory-heading, .archive-empty, .dossier-actions, .candidate-create fieldset, .home-upload fieldset) button:not(.secondary) {
   background: #e0eadc;
   border-color: #b8cbb5;
@@ -125,7 +125,6 @@
 .workspace-roster { padding: 0; overflow: hidden; }
 .roster-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 15px 17px 11px; gap: 8px; }
 .roster-heading h2 { margin: 0; font-size: 1.18rem; letter-spacing: -.02em; }
-.roster-heading p { font-size: .85rem; }
 .roster-tools {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr));
@@ -133,7 +132,7 @@
   padding: 0 17px 13px;
 }
 .roster-tools label { display: grid; gap: 4px; min-width: 0; font-size: .81rem; font-weight: 650; color: var(--muted); }
-.roster-tools input, .roster-tools select { min-width: 0; width: 100%; min-height: 40px; padding: 6px 8px; border: 1px solid var(--control-line); border-radius: 8px; color: #233127; }
+.roster-tools input { min-width: 0; width: 100%; min-height: 40px; padding: 6px 8px; border: 1px solid var(--control-line); border-radius: 8px; color: #233127; }
 .roster-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .89rem; }
 .roster-table thead { background: #f0f7ef; color: var(--green-dark); }
 .roster-table th, .roster-table td { padding: 12px 16px; overflow-wrap: anywhere; }
@@ -141,7 +140,6 @@
 .roster-table tbody tr + tr { border-top: 1px solid var(--line); }
 .roster-table tbody tr:hover { background: #f7fbf6; }
 .roster-table small { display: block; color: var(--muted); font-size: .77rem; font-weight: 500; }
-.roster-table td:last-child { text-align: right; }
 .roster-person { display: flex; align-items: center; gap: 9px; }
 .roster-avatar {
   flex: 0 0 auto;
@@ -191,10 +189,9 @@
 .candidate-overview li p { margin: 4px 0; }
 .candidate-overview li button { margin: 4px 5px 0 0; }
 .playback-rate { display: flex; align-items: center; gap: 7px; font-size: .83rem; color: var(--muted); }
-.playback-rate select { padding-block: 5px; }
 .copy-questions { margin-top: 10px; min-height: 34px; font-size: .82rem; }
 
-.archive-tables { display: grid; gap: 12px; }
+.archive-tables-content { display: grid; gap: 12px; }
 .archive-table-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .archive-table-controls [aria-pressed="true"] { background: #e4f1e6; color: var(--green-dark); border-color: #9cbfa8; }
 .archive-table-scroll { overflow: auto; max-height: 65vh; border: 1px solid var(--line); border-radius: 8px; }
@@ -207,5 +204,82 @@
 .archive-table-scroll code { white-space: nowrap; }
 .archive-transcript-text { min-width: 14rem; width: 100%; white-space: pre-wrap; }
 .archive-interview-select { max-width: 34rem; }
-.archive-interview-select select { width: 100%; }
-.archive-tables > p { overflow-wrap: anywhere; }
+.archive-tables-content > p { overflow-wrap: anywhere; }
+
+.directory-heading .sort-field { width: min(100%, 17rem); }
+:is(.interview-dashboard, .archive-tables, .home-upload, .candidate-create) > .directory-heading { margin-bottom: 14px; }
+.archive-tables { margin-top: 24px; }
+.archive-table-scroll :is(th, td) + :is(th, td),
+.roster-table :is(th, td) + :is(th, td) { border-left: 1px solid var(--line); }
+.vacancy-context { margin-block: 12px; }
+.vacancy-context { align-items: start; }
+.vacancy-context textarea { width: 100%; resize: none; overflow-y: auto; }
+.candidate-create .directory-heading { justify-content: center; }
+.assessment-coverage { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.assessment-coverage ul { margin: 7px 0 0; padding-left: 20px; }
+.assessment-coverage li + li { margin-top: 5px; }
+.assessment-coverage button { margin-inline-start: 6px; }
+
+.select-field { display: grid; gap: 5px; min-width: 0; font-size: .86rem; font-weight: 650; }
+.studio .select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+  font-weight: 500;
+}
+.select-trigger > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.select-chevron { width: 7px; height: 7px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); flex: none; }
+.select-popup {
+  position: fixed;
+  inset: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 5px;
+  overflow-y: auto;
+  border: 1px solid #bdcebf;
+  border-radius: 14px;
+  background: #fff;
+  color: #233127;
+  box-shadow: 0 10px 28px #192f2324;
+  font-size: .89rem;
+}
+.select-popup [role="option"] { padding: 9px 12px; border-radius: 9px; cursor: pointer; overflow-wrap: anywhere; }
+.select-popup [aria-selected="true"] { background: #edf6ec; font-weight: 650; }
+.select-popup [data-active="true"] { background: #dbeedc; }
+.dossier-resume { margin-bottom: 14px; }
+
+.delete-dialog {
+  width: min(30rem, calc(100% - 2rem));
+  padding: clamp(18px, 4vw, 28px);
+  border: 1px solid #d4e1d6;
+  border-radius: 22px;
+  background: #fff;
+  color: inherit;
+  box-shadow: 0 20px 60px #132a2540;
+}
+.delete-dialog::backdrop { background: #142a235e; }
+.delete-dialog-flower {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: #ebf6ec;
+  color: #437a54;
+  font-size: 1.5rem;
+}
+.delete-dialog h2 { margin: 0 0 8px; font-size: 1.25rem; }
+.delete-dialog p { margin: 0 0 7px; overflow-wrap: anywhere; }
+.delete-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.delete-dialog .delete-confirm { background: #9b3f35; border-color: #9b3f35; color: #fff; }
+.delete-dialog .delete-confirm:hover:enabled { background: #803028; border-color: #803028; }
+
+.roster-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.roster-row-actions > .interview-delete { margin-inline-start: auto; }

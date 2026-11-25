@@ -61,7 +61,6 @@ button.secondary:hover:enabled { background: var(--soft); }
 [role="alert"], [role="status"] { margin-top: 9px; }
 .error, [role="alert"] { color: #912820; }
 
-.report-description { margin-bottom: 12px; overflow-wrap: anywhere; }
 .player { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-block: 11px; margin: 14px 0 15px; }
 .player-recording { min-width: 0; overflow-wrap: anywhere; }
 .player audio { width: min(100%, 360px); }
@@ -84,12 +83,22 @@ button.secondary:hover:enabled { background: var(--soft); }
 .timestamp { font: 650 .76rem ui-monospace, monospace; }
 button.link { min-height: 0; background: #edf5ed; color: var(--green-dark); border: 0; padding: 5px 7px; border-radius: 6px; }
 button.link:hover:enabled { background: #d0ead3; }
-.coaching { padding: 16px; }
+.coaching { padding: 16px; background: #f6faf5; border-color: #d4e5d4; }
+.coach-header {
+  margin: -16px -16px 13px;
+  padding: 17px 16px;
+  border-radius: 19px 19px 0 0;
+  border-bottom: 1px solid #cfe2cf;
+  background: linear-gradient(120deg, #dcefd9, #edf7e9);
+  color: #21452b;
+}
+.coach-header h3 { margin: 0; }
 .coaching > p { margin-top: 5px; }
 .coach-source { font-size: .86rem; }
 .coach-group { margin-top: 17px; }
+.coach-group h4 { color: #2c5836; }
 .coach-group ul { display: grid; gap: 7px; list-style: none; padding: 0; margin: 6px 0 0; }
-.coach-card { border: 1px solid var(--line); border-radius: 10px; background: #f9fbf9; padding: 10px; overflow-wrap: anywhere; }
+.coach-card { border: 1px solid var(--line); border-radius: 10px; border-inline-start: 3px solid #8db692; background: #fff; padding: 10px 12px; overflow-wrap: anywhere; }
 .coach-card > .muted { font-size: .9rem; margin-top: 4px; }
 .coach-evidence { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
 
@@ -119,7 +128,7 @@ button.link:hover:enabled { background: #d0ead3; }
   .message:has(textarea) { width: 94%; }
 }
 
-.answer-assessment { margin: 0 0 15px; }
+.answer-assessment { margin: 15px 0 0; }
 .answer-assessment > p { margin-top: 4px; font-size: .88rem; }
 .assessment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .assessment-group {
@@ -156,6 +165,8 @@ button.link:hover:enabled { background: #d0ead3; }
 .assessment-group ul { display: grid; gap: 8px; list-style: none; padding: 0; margin: 0; }
 .assessment-group li + li { border-top: 1px solid var(--line); padding-top: 8px; }
 .assessment-group li > p { margin-top: 2px; font-size: .92rem; }
+.assessment-examples { display: grid; gap: 5px; margin-top: 8px; }
+.assessment-examples blockquote { margin: 0; padding: 5px 8px; border-inline-start: 2px solid var(--assessment-accent); background: #ffffffaa; overflow-wrap: anywhere; font-size: .88rem; }
 
 @media (max-width: 620px) {
   .assessment-grid { grid-template-columns: 1fr; }

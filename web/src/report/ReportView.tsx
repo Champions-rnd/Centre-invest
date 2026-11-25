@@ -1,3 +1,4 @@
+import { SelectField } from '../ui/SelectField'
 import { useEffect, useRef, useState } from 'react'
 import type { InterviewResult, Segment, SpeakerRole } from '../../../shared/contracts'
 import { groupDialogue } from '../../../shared/dialogue'
@@ -36,6 +37,7 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   const [transcript, setTranscript] = useState(result.transcript)
   const [draft, setDraft] = useState<Segment[] | null>(null)
   const [active, setActive] = useState('')
+  const [rate, setRate] = useState('1')
   const [audioError, setAudioError] = useState('')
   const [saveError, setSaveError] = useState('')
   const [reviewInfo, setReviewInfo] = useState('')
@@ -128,7 +130,6 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   return (
     <section className="report" aria-labelledby="report-title">
       <h2 id="report-title" tabIndex={-1}>Расшифровка и рекомендации</h2>
-      {result.vacancy?.description && <p className="muted report-description">{result.vacancy.description}</p>}
       <div className="panel player">
         <strong className="player-recording">{audioName}</strong>
         <audio ref={player} src={audioUrl} controls preload="metadata" onLoadedMetadata={event => {
@@ -137,17 +138,14 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
           const ms = event.currentTarget.currentTime * 1000
           setActive(transcript.find(segment => segment.startMs <= ms && ms < segment.endMs)?.id ?? '')
         }} onError={() => setAudioError('Браузер не может воспроизвести этот WAV. Расшифровка доступна ниже.')} />
-        <label className="playback-rate">Скорость
-          <select aria-label="Скорость" defaultValue="1" onChange={event => {
-            if (player.current) player.current.playbackRate = Number(event.target.value)
-          }}>
-            {[0.75, 1, 1.25, 1.5, 2].map(rate => <option key={rate} value={rate}>{rate.toLocaleString('ru')}×</option>)}
-          </select>
-        </label>
+        <SelectField label="Скорость" className="playback-rate" value={rate}
+          options={[0.75, 1, 1.25, 1.5, 2].map(rate => ({ value: String(rate), label: `${rate.toLocaleString('ru')}×` }))}
+          onChange={value => {
+            setRate(value)
+            if (player.current) player.current.playbackRate = Number(value)
+          }} />
         {audioError && <p className="error" role="status">{audioError}</p>}
       </div>
-      {coaching.status === 'ready' && <AnswerAssessment observations={coaching.result.observations}
-        segments={originals} onJump={segment => play(segment, true)} formatTime={timecode} />}
       <div className="results">
         <section className="panel transcript-panel" aria-labelledby="dialog-title">
           <div className="dialog-heading">
@@ -193,12 +191,9 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
                       return <div key={segment.id} className="message-edit" data-proposed={proposed}>
                         <div className="message-meta">
                           {turn.length > 1 && timestamp(segment)}
-                          <select disabled={saving} aria-label={`Роль в реплике ${timecode(segment.startMs)}`} value={roleOf(value)}
-                            onChange={event => updateDraft(segment.id, { speaker: event.target.value, roleReviewed: true })}>
-                            <option value="">{roleLabels['']}</option>
-                            <option value="hr">HR</option>
-                            <option value="candidate">Кандидат</option>
-                          </select>
+                          <SelectField disabled={saving} label={`Роль в реплике ${timecode(segment.startMs)}`} value={roleOf(value)}
+                            options={Object.entries(roleLabels).map(([value, label]) => ({ value, label }))}
+                            onChange={speaker => updateDraft(segment.id, { speaker, roleReviewed: true })} />
                           {proposed && <span className="role-change">{roleLabels[roleOf(segment)]} → {roleLabels[roleOf(value)]}</span>}
                           {!proposed && !value.roleReviewed && roleOf(value) && (
                             <button type="button" className="secondary" disabled={saving}
@@ -235,6 +230,10 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
         <CoachingPanel state={coaching} segments={originals} onJump={segment => play(segment, true)}
           onRetry={() => setRetry(value => value + 1)} formatTime={timecode} />
       </div>
+      {(coaching.status === 'ready' || result.vacancy?.criteria.length) ? <AnswerAssessment
+        observations={coaching.status === 'ready' ? coaching.result.observations : []}
+        vacancy={result.vacancy} findings={result.report} status={coaching.status}
+        segments={originals} onJump={segment => play(segment, true)} formatTime={timecode} /> : null}
     </section>
   )
 }
