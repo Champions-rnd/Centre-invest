@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "dev": "node --import tsx server/index.ts --dev",
     "dev:api": "node --watch --import tsx server/index.ts",
     "dev:web": "vite",
     "check": "tsc --noEmit",
