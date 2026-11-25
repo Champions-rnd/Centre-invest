@@ -1,3 +1,4 @@
+import { createServer } from 'node:http'
 import { existsSync } from 'node:fs'
 import { loadEnvFile } from 'node:process'
 import { resolve } from 'node:path'
@@ -255,14 +256,24 @@ const handleError: ErrorRequestHandler = (error, _request, response, _next) => {
 }
 
 app.use(handleError)
-app.use(express.static(resolve('dist')))
-const port = Number(process.env.HR_API_PORT || 3001)
+const development = process.argv.includes('--dev')
+const port = Number(development ? 5173 : process.env.HR_API_PORT || 3001)
 if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('Некорректный порт HR_API_PORT.')
-app.listen(port, '127.0.0.1', error => {
-  if (error) {
-    console.error(`Не удалось запустить сервер на порту ${port}: ${error.message}`)
-    process.exitCode = 1
-    return
-  }
-  console.log(`HR-аналитика: http://127.0.0.1:${port}`)
+
+const server = createServer(app)
+const vite = development ? await (await import('vite')).createServer({
+  mode: 'embedded',
+  server: { middlewareMode: true, hmr: { server } },
+}) : undefined
+
+if (vite) app.use(vite.middlewares)
+else app.use(express.static(resolve('dist')))
+
+server.once('error', async error => {
+  if (vite) await vite.close()
+  console.error('Не удалось запустить сервер на порту %d: %s', port, error.message)
+  process.exitCode = 1
+})
+server.listen(port, '127.0.0.1', () => {
+  console.log('HR-аналитика: http://127.0.0.1:%d', port)
 })
