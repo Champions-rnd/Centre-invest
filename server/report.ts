@@ -1,6 +1,6 @@
 import {
   reportSchema, transcriptSchema, vacancyCriteria,
-  type AnalysisRequest, type InterviewResult, type Vacancy,
+  type AnalysisRequest, type InterviewResult, type InterviewStage, type Vacancy,
 } from '../shared/contracts'
 import { analyzeInterview } from './analysis'
 import { analyzeCriteriaWithChatCI } from './analysis/criterion-report'
@@ -44,13 +44,15 @@ export async function buildReport(input: AnalysisRequest): Promise<InterviewResu
 }
 
 export async function processInterview(
-  audio: Express.Multer.File, vacancy: Vacancy | null,
+  audio: Express.Multer.File, vacancy: Vacancy | null, onStage?: (stage: InterviewStage) => void,
 ): Promise<InterviewResult> {
+  onStage?.('transcribing')
   const parsed = transcriptSchema.safeParse(await transcribeWav(audio))
   if (!parsed.success) {
     throw new ApiError(502, 'INVALID_TRANSCRIPT', 'Распознавание вернуло расшифровку в неверном формате.')
   }
   const transcript = suggestSpeakerRoles(parsed.data)
+  onStage?.('analyzing')
   return vacancy
     ? buildReport({ vacancy, transcript })
     : { mode: 'live', vacancy: null, transcript, report: [] }

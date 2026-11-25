@@ -43,19 +43,18 @@ export async function analyzeCriteriaWithChatCI(
     const rows = transcript.slice(start, end).map(({ id, speaker, text }) => ({ id, speaker, text }))
     start = end
     const answers = new Map(rows.filter(row => row.speaker === 'candidate').map(row => [row.id, row.text]))
+    const valid = ({ findings: candidates }: z.infer<typeof output>) =>
+      candidates.length === ids.size && new Set(candidates.map(item => item.criterionId)).size === ids.size
+      && candidates.every(({ criterionId, evidence, status, gaps, nextQuestions }) =>
+        ids.has(criterionId)
+        && new Set(evidence.map(({ segmentId, quote }) => JSON.stringify([segmentId, quote]))).size === evidence.length
+        && evidence.every(({ segmentId, quote }) => answers.get(segmentId)?.includes(quote))
+        && (status === 'missing' ? evidence.length === 0 : evidence.length > 0)
+        && (status === 'supported' || Boolean(gaps.length && nextQuestions.length)))
     const { findings: candidates } = await generate(provider, signal, prompt, JSON.stringify({
       criteria, description: input.vacancy.description, transcript: rows,
-    }), output, 10_000, 'vacancy_criteria_report')
-    const coverage = new Set<string>()
+    }), output, 10_000, 'vacancy_criteria_report', valid)
     for (const { evidence, ...finding } of candidates) {
-      if (!ids.has(finding.criterionId) || coverage.has(finding.criterionId)
-        || new Set(evidence.map(({ segmentId, quote }) => JSON.stringify([segmentId, quote]))).size !== evidence.length
-        || evidence.some(({ segmentId, quote }) => !answers.get(segmentId)?.includes(quote))
-        || (finding.status === 'missing' ? evidence.length > 0 : evidence.length === 0)
-        || (finding.status !== 'supported' && (!finding.gaps.length || !finding.nextQuestions.length))) {
-        throw new Error('Invalid criterion evidence')
-      }
-      coverage.add(finding.criterionId)
       const previous = findings.get(finding.criterionId)
       if (!previous || strength[finding.status] > strength[previous.status]) {
         findings.set(finding.criterionId, {
@@ -65,7 +64,6 @@ export async function analyzeCriteriaWithChatCI(
         })
       }
     }
-    if (coverage.size !== criteria.length) throw new Error('Incomplete criterion report')
   }
   return [...findings.values()]
 }

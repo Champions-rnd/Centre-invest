@@ -209,7 +209,16 @@
 .vacancy-context textarea { width: 100%; resize: none; overflow-y: auto; }
 .candidate-create .directory-heading { justify-content: center; }
 .assessment-coverage { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.criterion-findings { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+.criterion-scroll {
+  max-height: min(32rem, 65vh);
+  margin-top: 12px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-color: #789a7e transparent;
+  padding-inline-end: 8px;
+}
+.criterion-scroll:focus-visible { outline-offset: -2px; }
+.criterion-findings { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .criterion-finding { background: var(--surface-soft, #f6f9f5); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-wrap: anywhere; }
 .criterion-heading { display: flex; align-items: start; flex-wrap: wrap; gap: 6px 10px; }
 .criterion-heading h5 { margin: 0; font-size: 1rem; }
@@ -219,6 +228,22 @@
 .criterion-finding p { margin: 7px 0 0; }
 .criterion-finding figure { margin: 8px 0; padding: 6px 10px; border-inline-start: 2px solid #4d8b55; background: #fff; }
 .criterion-finding blockquote { margin: 0 0 5px; white-space: pre-wrap; }
+.criterion-followup {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-inline-start: 3px solid #c49a54;
+  border-radius: 7px;
+  background: #fbefd8;
+  color: #684617;
+}
+.criterion-followup[data-kind="question"] {
+  border-inline-start-color: #6ea083;
+  background: #deefdd;
+  color: #245631;
+}
+.criterion-followup h6 { margin: 0; font-size: .9rem; }
+.criterion-followup ul { margin: 3px 0 0; padding-inline-start: 1.15rem; }
+.criterion-followup li + li { margin-top: 3px; }
 
 .select-field { display: grid; gap: 5px; min-width: 0; font-size: .86rem; font-weight: 650; }
 .studio .select-trigger {

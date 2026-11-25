@@ -70,7 +70,7 @@ button.secondary:hover:enabled { background: var(--soft); }
 .dialog-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 15px 17px; border-bottom: 1px solid var(--line); }
 .dialog-heading .muted { font-size: .88rem; margin-top: 3px; }
 .dialog-heading button { min-height: 36px; font-size: .88rem; }
-.dialog-messages { display: flex; flex-direction: column; gap: 10px; max-height: 650px; overflow: auto; overscroll-behavior: contain; background: #f2f7f3; list-style: none; padding: 15px 17px; margin: 0; }
+.dialog-messages { display: flex; flex-direction: column; gap: 10px; max-height: 650px; overflow: auto; background: #f2f7f3; list-style: none; padding: 15px 17px; margin: 0; }
 .message { width: fit-content; max-width: min(88%, 66ch); min-width: 0; align-self: start; background: #fff; border: 1px solid #dbe6de; padding: 10px 13px; border-radius: 15px 15px 15px 4px; overflow-wrap: anywhere; }
 .message[data-role="hr"] { align-self: end; background: #dbefdf; border-color: #c2dfca; border-radius: 15px 15px 4px 15px; }
 .message[data-role="unknown"] { align-self: center; background: #fff7e7; border-color: #ebd7af; border-radius: 15px; }
@@ -98,7 +98,6 @@ button.link:hover:enabled { background: #d0ead3; }
   min-height: 0;
   contain: size;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   scrollbar-gutter: stable;
   scrollbar-color: #789a7e #edf4eb;
   padding: 13px 16px 16px;
@@ -169,7 +168,6 @@ button.link:hover:enabled { background: #d0ead3; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   scrollbar-gutter: stable;
   scrollbar-color: var(--assessment-accent) transparent;
   padding-inline-end: 4px;

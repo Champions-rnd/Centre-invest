@@ -10,7 +10,7 @@ const sections: { kind: Recommendation['kind']; title: string }[] = [
 export type CoachingState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; result: CoachingResult; refining?: boolean; refinementFailed?: boolean }
+  | { status: 'ready'; result: CoachingResult; refining?: boolean; refinementFailed?: boolean; criterionQuestions?: Recommendation[] }
 
 type Props = {
   state: CoachingState
@@ -22,6 +22,7 @@ type Props = {
 
 export function CoachingPanel({ state, segments, onJump, onRetry, formatTime }: Props) {
   const [copyStatus, setCopyStatus] = useState('')
+  const questions = state.status === 'ready' ? state.criterionQuestions ?? state.result.recommendations : []
 
   async function copyQuestions(questions: string[]) {
     try {
@@ -47,21 +48,23 @@ export function CoachingPanel({ state, segments, onJump, onRetry, formatTime }: 
           <>
             {state.refining && <p className="muted" role="status">Дополняем предварительный разбор через ChatCI…</p>}
             {state.refinementFailed && <div className="coach-source">
-              <p className="muted">ИИ-анализ недоступен. Показан предварительный разбор.</p>
+              <p className="muted">{state.criterionQuestions ? 'Можно повторить отдельный разбор диалога.'
+                : 'ChatCI не подготовил вопросы по расшифровке. Показаны предварительные подсказки.'}</p>
               <button type="button" className="secondary copy-questions" onClick={onRetry}>Повторить ИИ-анализ</button>
             </div>}
             <p className="muted coach-source">
-              {state.result.source === 'rules' ? 'Подсказки по структуре разговора'
+              {state.criterionQuestions ? 'Вопросы ChatCI из анализа критериев вакансии'
+                : state.result.source === 'rules' ? 'Подсказки по структуре разговора'
                 : state.result.source === 'chatci' ? 'Подготовлено ChatCI'
                 : state.result.source === 'local' ? 'Подготовлено локальной ИИ-моделью' : 'Подготовлено подключённой ИИ-моделью'}
               {state.result.ruleSupplement && ' и дополнено правилами анализа диалога'}
             </p>
-            {!state.result.recommendations.length && <p>По этой расшифровке нет дополнительных вопросов.</p>}
-            {state.result.recommendations.length > 0 && <button type="button" className="secondary copy-questions"
-              onClick={() => void copyQuestions(state.result.recommendations.map(item => item.question))}>Скопировать вопросы</button>}
+            {!questions.length && <p>По этой расшифровке нет дополнительных вопросов.</p>}
+            {questions.length > 0 && <button type="button" className="secondary copy-questions"
+              onClick={() => void copyQuestions(questions.map(item => item.question))}>Скопировать вопросы</button>}
             {copyStatus && <p className="muted" role="status">{copyStatus}</p>}
             {sections.map(({ kind, title }) => {
-              const items = state.result.recommendations.filter(item => item.kind === kind)
+              const items = questions.filter(item => item.kind === kind)
               if (!items.length) return null
               return (
                 <section className="coach-group" key={kind}>

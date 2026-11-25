@@ -5,6 +5,10 @@ export const MAX_AUDIO_BYTES = MAX_AUDIO_MB * 1024 * 1024
 export const MAX_AUDIO_MINUTES = 60
 export const MAX_VACANCY_TEXT_BYTES = 128 * 1024
 
+export const interviewProgressType = 'application/x-ndjson'
+export const interviewStageSchema = z.enum(['transcribing', 'analyzing', 'saving'])
+export type InterviewStage = z.infer<typeof interviewStageSchema>
+
 export const vacancyImportSchema = z.object({
   specialty: z.string().trim().max(120),
   description: z.string().trim().max(12_000),

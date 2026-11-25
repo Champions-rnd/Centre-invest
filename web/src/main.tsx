@@ -4,7 +4,7 @@ import type { ArchiveInterview, Candidate, CandidateDetail, CandidateMaterials, 
 import type { Segment } from '../../shared/contracts'
 import {
   archiveDownload, createCandidate, deleteCandidate, deleteInterview, loadCandidate, loadCandidates, loadArchiveInterviews, loadInterview,
-  saveCandidateStatus, saveInterviewTranscript, submitInterview,
+  interviewStageLabels, saveCandidateStatus, saveInterviewTranscript, submitInterview,
 } from './api'
 import { ArchiveTables } from './archive/ArchiveTables'
 import { CandidateDossier } from './archive/CandidateDossier'
@@ -95,7 +95,7 @@ function App() {
     if (busy) return
     void run(recording ? 'Загружаем WAV…' : 'Сохраняем карточку…', async () => {
       const interview = recording && await submitInterview(recording.file, null, { profile, newCandidateId: id, materials }, recording.uploadId,
-        percent => setPending(percent === null ? 'Распознаём интервью…' : `Загружаем WAV · ${percent}%`))
+        progress => setPending(progress.stage === 'uploading' ? `Загружаем WAV · ${progress.percent}%` : interviewStageLabels[progress.stage]))
       const candidate = interview ? await loadCandidate(interview.candidateId) : await createCandidate(id, profile, materials)
       rememberCandidate(candidate)
       setScreen({ view: 'dossier', candidate, interview })
