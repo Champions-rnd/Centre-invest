@@ -3,7 +3,7 @@ import {
   archiveInterviewSchema, candidateDetailSchema, candidateSchema, interviewDeletionSchema, savedInterviewSchema,
   type CandidateMaterials, type CandidateProfile, type CandidateStatus, type CandidateTarget, type SavedInterview,
 } from '../../shared/archive'
-import { coachingResultSchema, roleReviewSchema, vacancyImportSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
+import { coachingResultSchema, interviewProgressType, interviewStageSchema, roleReviewSchema, vacancyImportSchema, type CoachingRequest, type InterviewStage, type Segment, type Vacancy } from '../../shared/contracts'
 
 import { validateWav } from './intake/wav'
 
@@ -27,9 +27,17 @@ function jsonRequest(method: 'PATCH' | 'POST', input: unknown, signal?: AbortSig
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input), signal }
 }
 
+export type InterviewProgress = { stage: 'uploading'; percent: number } | { stage: InterviewStage }
+
+export const interviewStageLabels: Record<InterviewStage, string> = {
+  transcribing: 'Распознаём речь в ChatCI',
+  analyzing: 'Готовим отчёт по расшифровке',
+  saving: 'Сохраняем интервью',
+}
+
 export async function submitInterview(
   audio: File, vacancy: Vacancy | null, candidate: CandidateTarget,
-  uploadId: string, onUpload: (percent: number | null) => void,
+  uploadId: string, onProgress: (progress: InterviewProgress) => void,
 ) {
   await validateWav(audio)
   const body = new FormData()
@@ -40,19 +48,47 @@ export async function submitInterview(
   return new Promise<SavedInterview>((resolve, reject) => {
     const request = new XMLHttpRequest()
     request.open('POST', '/api/interviews')
-    request.responseType = 'json'
-    request.upload.onprogress = event => {
-      if (event.lengthComputable && event.total) onUpload(Math.min(100, Math.floor(event.loaded * 100 / event.total)))
-    }
-    request.upload.onload = () => onUpload(null)
-    request.onload = () => {
-      if (request.status < 200 || request.status >= 300) {
-        reject(new Error(request.response?.error?.message ?? `Ошибка запроса (${request.status}).`))
-        return
+    request.setRequestHeader('Accept', interviewProgressType)
+    let offset = 0
+    let saved: SavedInterview | undefined
+    let failure: string | undefined
+    const streamed = () => request.getResponseHeader('Content-Type')?.startsWith(interviewProgressType)
+    function readProgress() {
+      if (!streamed()) return
+      const data = request.responseText
+      for (let end = data.indexOf('\n', offset); end !== -1; end = data.indexOf('\n', offset)) {
+        const line = data.slice(offset, end)
+        offset = end + 1
+        try {
+          const event = JSON.parse(line)
+          const stage = interviewStageSchema.safeParse(event?.stage)
+          if (stage.success) onProgress({ stage: stage.data })
+          else if (typeof event?.error === 'string') failure = event.error
+          else if (event?.saved) saved = savedInterviewSchema.parse(event.saved)
+        } catch {
+          failure = 'Сервер вернул данные в неожиданном формате.'
+        }
       }
-      const saved = savedInterviewSchema.safeParse(request.response)
-      if (saved.success) resolve(saved.data)
-      else reject(new Error('Сервер вернул данные в неожиданном формате.'))
+    }
+    request.upload.onprogress = event => {
+      if (event.lengthComputable && event.total) onProgress({ stage: 'uploading', percent: Math.min(100, Math.floor(event.loaded * 100 / event.total)) })
+    }
+    request.upload.onload = () => onProgress({ stage: 'uploading', percent: 100 })
+    request.onprogress = readProgress
+    request.onload = () => {
+      if (streamed()) {
+        readProgress()
+      } else {
+        try {
+          const result = JSON.parse(request.responseText)
+          if (request.status >= 200 && request.status < 300) saved = savedInterviewSchema.parse(result)
+          else failure = result?.error?.message ?? `Ошибка запроса (${request.status}).`
+        } catch {
+          failure = 'Сервер вернул данные в неожиданном формате.'
+        }
+      }
+      if (saved && !failure) resolve(saved)
+      else reject(new Error(failure ?? 'Сервер не подтвердил сохранение интервью. Повторите загрузку.'))
     }
     request.onerror = () => reject(new Error('Связь с сервером прервалась. Повторите загрузку.'))
     request.send(body)

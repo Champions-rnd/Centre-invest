@@ -73,7 +73,7 @@ export function AnswerAssessment({ observations, vacancy, findings, reportSource
       {criteria.length > 0 && <section className="assessment-coverage" aria-labelledby="assessment-coverage-title" aria-busy={refreshing}>
         <div className="history-heading">
           <div>
-            <h4 id="assessment-coverage-title">Рекомендация ИИ</h4>
+            <h4 id="assessment-coverage-title">Анализ критериев вакансии</h4>
             <p className="muted">{reportSource === 'chatci' ? 'Анализ критериев вакансии через ChatCI'
               : reportSource === 'rules' ? 'Предварительная проверка по ключевым словам. Выводы требуют сверки.'
                 : 'Сохранённый отчёт. Обновите анализ, чтобы получить выводы по критериям через ChatCI.'}</p>

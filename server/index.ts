@@ -6,7 +6,7 @@ import express, { type ErrorRequestHandler } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
 import { candidateCreateSchema, candidateStatusSchema, candidateTargetSchema, resumeSchema, transcriptUpdateSchema } from '../shared/archive'
-import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_BYTES, MAX_AUDIO_MB, MAX_AUDIO_MINUTES, MAX_VACANCY_TEXT_BYTES, vacancyImportSchema, vacancySchema } from '../shared/contracts'
+import { analysisRequestSchema, coachingRequestSchema, interviewProgressType, MAX_AUDIO_BYTES, MAX_AUDIO_MB, MAX_AUDIO_MINUTES, MAX_VACANCY_TEXT_BYTES, vacancyImportSchema, vacancySchema } from '../shared/contracts'
 import { wavDurationSeconds } from '../shared/wav'
 import { coachInterview, coachInterviewLocally } from './analysis/coach'
 import { buildCandidateOverview } from './analysis/candidate-overview'
@@ -213,8 +213,27 @@ app.post('/api/interviews', upload.single('audio'), async (request, response) =>
   }
   const defaultVacancy = 'candidateId' in target.data ? archive.candidate(target.data.candidateId).vacancy
     : target.data.materials?.vacancy
-  const result = await processInterview(audio, vacancy.data ?? defaultVacancy ?? null)
-  response.status(201).json(archive.saveInterview(target.data, audio, result, uploadId))
+  const context = vacancy.data ?? defaultVacancy ?? null
+  if (request.get('Accept') !== interviewProgressType) {
+    const result = await processInterview(audio, context)
+    response.status(201).json(archive.saveInterview(target.data, audio, result, uploadId))
+    return
+  }
+
+  response.status(201).type(interviewProgressType).set('Cache-Control', 'no-store')
+  const send = (event: object) => {
+    if (!response.destroyed) response.write(JSON.stringify(event) + '\n')
+  }
+  try {
+    const result = await processInterview(audio, context, stage => send({ stage }))
+    send({ stage: 'saving' })
+    send({ saved: archive.saveInterview(target.data, audio, result, uploadId) })
+  } catch (error) {
+    if (!(error instanceof ApiError)) console.error('Ошибка обработки интервью', error instanceof Error ? error.name : 'UnknownError')
+    send({ error: error instanceof ApiError ? error.message : 'Ошибка обработки запроса.' })
+  } finally {
+    response.end()
+  }
 })
 
 app.post('/api/analyze', json, async (request, response) => {

@@ -2,7 +2,7 @@ import { SelectField } from '../ui/SelectField'
 import { useRef, useState, type FormEvent } from 'react'
 import { candidateTargetSchema, type Candidate, type CandidateTarget, type SavedInterview } from '../../../shared/archive'
 import { MAX_AUDIO_MB, MAX_AUDIO_MINUTES, type Vacancy } from '../../../shared/contracts'
-import { submitInterview } from '../api'
+import { interviewStageLabels, submitInterview, type InterviewProgress } from '../api'
 import { CandidateProfileFields, readCandidateProfile } from '../archive/CandidateProfileForm'
 import { FilePicker } from './FilePicker'
 import { readVacancy, VacancyFields, vacancyError } from './VacancyFields'
@@ -15,7 +15,7 @@ type Job = Selection & {
   target: CandidateTarget
   vacancy: Vacancy | null
   state: 'waiting' | 'uploading' | 'processing' | 'saved' | 'failed'
-  percent?: number
+  progress?: InterviewProgress
   error?: string
   candidateId?: string
 }
@@ -33,6 +33,8 @@ const labels: Record<Job['state'], string> = {
   waiting: 'В очереди', uploading: 'Загрузка', processing: 'Распознавание и сохранение',
   saved: 'Сохранено', failed: 'Ошибка',
 }
+
+const completedStages = { transcribing: 1, analyzing: 2, saving: 3 } as const
 
 function CandidateFields({ candidates, prefix, value, onChange }: {
   candidates: Candidate[]
@@ -92,11 +94,11 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
     setActive(true)
     try {
       for (const job of queue) {
-        updateJob(job.id, { state: 'uploading', percent: 0 })
+        updateJob(job.id, { state: 'uploading', progress: { stage: 'uploading', percent: 0 } })
         let saved: SavedInterview
         try {
-          saved = await submitInterview(job.file, job.vacancy, job.target, job.id, percent => {
-            updateJob(job.id, percent === null ? { state: 'processing' } : { percent })
+          saved = await submitInterview(job.file, job.vacancy, job.target, job.id, progress => {
+            updateJob(job.id, { state: progress.stage === 'uploading' ? 'uploading' : 'processing', progress })
           })
         } catch (failure) {
           updateJob(job.id, { state: 'failed', error: failure instanceof Error ? failure.message : 'Не удалось обработать файл.' })
@@ -140,7 +142,7 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
 
   function retry() {
     if (running.current) return
-    setJobs(current => current.map(job => job.state === 'failed' ? { ...job, state: 'waiting', error: undefined } : job))
+    setJobs(current => current.map(job => job.state === 'failed' ? { ...job, state: 'waiting', progress: undefined, error: undefined } : job))
     void processJobs(failures)
   }
 
@@ -188,19 +190,29 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
         </div>
         <p className="muted" role="status">Сохранено {savedCount} из {jobs.length}{failures.length > 0 ? ` · Ошибок: ${failures.length}` : ''}</p>
         <ul>
-          {jobs.map(job => (
-            <li key={job.id} data-state={job.state}>
-              <div className="upload-line">
-                <strong>{job.file.name}</strong>
-                <span>{labels[job.state]}{job.state === 'uploading' ? ` · ${job.percent ?? 0}%` : ''}</span>
-              </div>
-              {job.state === 'uploading' && <progress value={job.percent ?? 0} max={100} aria-label={`Загрузка ${job.file.name}`} />}
-              {job.state === 'processing' && <progress aria-label={`Распознавание ${job.file.name}`} />}
-              {job.state === 'failed' && <p className="error">{job.error}</p>}
-              {job.state === 'saved' && job.candidateId && <button type="button" className="secondary upload-remove"
-                onClick={() => onOpen(job.candidateId!, job.id)}>Открыть интервью</button>}
-            </li>
-          ))}
+          {jobs.map(job => {
+            const progress = job.progress
+            const completed = job.state === 'saved' ? 4 : !progress ? 0
+              : progress.stage === 'uploading' ? progress.percent / 100 : completedStages[progress.stage]
+            const status = job.state === 'processing' && progress && progress.stage !== 'uploading'
+              ? interviewStageLabels[progress.stage] : labels[job.state]
+            return (
+              <li key={job.id} data-state={job.state}>
+                <div className="upload-line">
+                  <strong>{job.file.name}</strong>
+                  <span>{status}{job.state === 'uploading' && progress?.stage === 'uploading' ? ` · ${progress.percent}%` : ''}</span>
+                </div>
+                {job.state !== 'waiting' && <div className="upload-progress" role="progressbar"
+                  aria-label={`Обработка ${job.file.name}`} aria-valuemin={0} aria-valuemax={4} aria-valuenow={completed}
+                  aria-valuetext={`${status}. Завершено этапов: ${Math.floor(completed)} из 4`}>
+                  <span style={{ width: `${completed * 25}%` }} />
+                </div>}
+                {job.state === 'failed' && <p className="error">{job.error}</p>}
+                {job.state === 'saved' && job.candidateId && <button type="button" className="secondary upload-remove"
+                  onClick={() => onOpen(job.candidateId!, job.id)}>Открыть интервью</button>}
+              </li>
+            )
+          })}
         </ul>
         {!active && failures.length > 0 && <button type="button" onClick={retry}>Повторить неудавшиеся ({failures.length})</button>}
       </section>}

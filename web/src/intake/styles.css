@@ -31,4 +31,6 @@
 .upload-queue li[data-state="failed"] { background: #fff8f4; }
 .upload-queue li[data-state="failed"] .upload-line > span { color: #912820; }
 .upload-queue li > button { margin-top: 5px; }
-.upload-queue progress { display: block; width: 100%; height: 6px; margin: 7px 0 3px; accent-color: var(--green); }
+.upload-progress { height: 18px; margin: 7px 0 3px; padding: 3px; border-radius: 999px; background: #e6eee4; }
+.upload-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #398233, #75b657); }
+.upload-queue li[data-state="failed"] .upload-progress > span { background: #8d998d; }

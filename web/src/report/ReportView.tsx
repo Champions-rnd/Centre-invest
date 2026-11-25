@@ -52,6 +52,14 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
   const originals = new Map(transcript.map(segment => [segment.id, segment]))
   const drafts = draft && new Map(draft.map(segment => [segment.id, segment]))
   const uncertain = transcript.filter(segment => !roleOf(segment)).length
+  const criterionQuestions = result.reportSource === 'chatci' ? result.report.flatMap(finding =>
+    finding.nextQuestions.map(question => ({
+      kind: 'clarify' as const, question, reason: finding.gaps.join(' ') || finding.conclusion,
+      evidenceIds: finding.evidenceIds,
+    }))) : []
+  const displayedCoaching: CoachingState = coaching.status === 'ready' && coaching.result.source === 'rules' && criterionQuestions.length
+    ? { ...coaching, criterionQuestions }
+    : coaching
 
   useEffect(() => () => roleRequest.current?.abort(), [])
   useEffect(() => {
@@ -147,6 +155,7 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
     if (saving || refreshing || draft) return
     setReportError('')
     setRefreshing(true)
+    setRetry(value => value + 1)
     try {
       await onSave(transcript)
     } catch (error) {
@@ -256,7 +265,7 @@ export function ReportView({ interviewId, result, audioUrl, audioName, seek, onS
             }}>Отмена</button>
           </div>}
         </section>
-        <CoachingPanel state={coaching} segments={originals} onJump={segment => play(segment, true)}
+        <CoachingPanel state={displayedCoaching} segments={originals} onJump={segment => play(segment, true)}
           onRetry={() => setRetry(value => value + 1)} formatTime={timecode} />
       </div>
       {reportError && <p className="error" role="alert">{reportError}</p>}
