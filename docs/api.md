@@ -9,6 +9,8 @@
 | `POST /api/analyze` | JSON `{ vacancy, transcript }` | `InterviewResult` с пересобранным отчётом |
 | `POST /api/coach` | JSON `{ vacancy, transcript }`, где `vacancy` может быть `null` | `{ source, recommendations }` |
 
+При загрузке WAV действуют оба ограничения: не более 50 МБ (52 428 800 байт) и не более 60 минут. Превышение длительности возвращает `400 AUDIO_TOO_LONG`.
+
 Объект `vacancy` содержит `description` и массив `criteria` максимум из 20 строк. Достаточно заполнить описание или одну тему. Если поле на загрузке отсутствует, сервер возвращает `vacancy: null` и пустой массив `report`.
 
 Каждый фрагмент расшифровки содержит `{ id, speaker, startMs, endMs, text }`. Поле `speaker` содержит предположенную роль `hr`, `candidate` или пустую строку. При правке текста и роли сохраняйте ID и таймкоды.

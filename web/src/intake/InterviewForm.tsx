@@ -1,7 +1,7 @@
 import { SelectField } from '../ui/SelectField'
 import { useRef, useState, type FormEvent } from 'react'
 import { candidateTargetSchema, type Candidate, type CandidateTarget, type SavedInterview } from '../../../shared/archive'
-import { MAX_AUDIO_MB, type Vacancy } from '../../../shared/contracts'
+import { MAX_AUDIO_MB, MAX_AUDIO_MINUTES, type Vacancy } from '../../../shared/contracts'
 import { submitInterview } from '../api'
 import { CandidateProfileFields, readCandidateProfile } from '../archive/CandidateProfileForm'
 import { FilePicker } from './FilePicker'
@@ -153,7 +153,7 @@ export function InterviewForm({ candidates, candidateId, attachTo, onCandidate, 
       <form className="panel" onSubmit={handleSubmit}>
         <fieldset disabled={active}>
           <FilePicker id="interview-wav" label="Интервью из WAV" accept={wavAccept} multiple disabled={active}
-            help={`WAV · до ${MAX_AUDIO_MB} МБ на файл`} onFiles={selectFiles} />
+            help={`WAV · до ${MAX_AUDIO_MB} МБ · до ${MAX_AUDIO_MINUTES} минут на файл`} onFiles={selectFiles} />
           {files.length > 0 && <>
             {!attachTo && files.length > 1 && <label className="upload-mode">
               <input type="checkbox" checked={separateTargets} onChange={event => setSeparate(event.target.checked)} />

@@ -5,7 +5,8 @@ import express, { type ErrorRequestHandler } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
 import { candidateCreateSchema, candidateStatusSchema, candidateTargetSchema, resumeSchema, transcriptUpdateSchema } from '../shared/archive'
-import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_MB, MAX_VACANCY_TEXT_BYTES, vacancyImportSchema, vacancySchema } from '../shared/contracts'
+import { analysisRequestSchema, coachingRequestSchema, MAX_AUDIO_BYTES, MAX_AUDIO_MB, MAX_AUDIO_MINUTES, MAX_VACANCY_TEXT_BYTES, vacancyImportSchema, vacancySchema } from '../shared/contracts'
+import { wavDurationSeconds } from '../shared/wav'
 import { coachInterview } from './analysis/coach'
 import { buildCandidateOverview } from './analysis/candidate-overview'
 import { reviewRoles } from './analysis/review-roles'
@@ -24,7 +25,8 @@ const archive = openArchive()
 const json = express.json({ limit: '5mb' })
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_AUDIO_MB * 1024 * 1024, files: 1, fields: 3, fieldSize: 384 * 1024 },
+  // Busboy rejects a file when it reaches its limit. Allow exactly MAX_AUDIO_BYTES.
+  limits: { fileSize: MAX_AUDIO_BYTES + 1, files: 1, fields: 3, fieldSize: 384 * 1024 },
 })
 
 function parseId(value: unknown) {
@@ -167,9 +169,15 @@ app.patch('/api/interviews/:id/transcript', json, async (request, response) => {
 
 app.post('/api/interviews', upload.single('audio'), async (request, response) => {
   const audio = request.file
-  if (!audio || !['RIFF', 'RIFX', 'RF64', 'BW64'].includes(audio.buffer.toString('ascii', 0, 4))
-    || audio.buffer.toString('ascii', 8, 12) !== 'WAVE') {
+  if (audio && audio.size > MAX_AUDIO_BYTES) {
+    throw new ApiError(413, 'LIMIT_FILE_SIZE', `Лимит WAV — ${MAX_AUDIO_MB} МБ.`)
+  }
+  const duration = audio && wavDurationSeconds(audio.buffer)
+  if (!audio || duration === undefined) {
     throw new ApiError(400, 'INVALID_WAV', 'Добавьте корректный файл WAV.')
+  }
+  if (duration > MAX_AUDIO_MINUTES * 60) {
+    throw new ApiError(400, 'AUDIO_TOO_LONG', `Длительность WAV должна быть не больше ${MAX_AUDIO_MINUTES} минут.`)
   }
 
   let rawVacancy: unknown = null

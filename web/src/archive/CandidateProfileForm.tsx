@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { candidateProfileSchema, type CandidateMaterials, type CandidateProfile } from '../../../shared/archive'
-import { MAX_AUDIO_MB, MAX_VACANCY_TEXT_BYTES } from '../../../shared/contracts'
+import { MAX_AUDIO_MB, MAX_AUDIO_MINUTES, MAX_VACANCY_TEXT_BYTES } from '../../../shared/contracts'
 import { createUploadId } from '../intake/uploadId'
 import { FilePicker } from '../intake/FilePicker'
 import { readVacancy, VacancyFields, vacancyError } from '../intake/VacancyFields'
@@ -106,7 +106,7 @@ export function CandidateProfileForm({ busy, onSave }: {
                 : vacancyFilename && <p className="selected-file-name" role="status">{vacancyFilename}</p>}
             </FilePicker>
             <FilePicker id="candidate-wav" label="Добавьте запись интервью" accept={wavAccept} disabled={busy || reading}
-              help={`WAV · до ${MAX_AUDIO_MB} МБ`} onFiles={([file]) => setRecording({ file, uploadId: createUploadId() })}>
+              help={`WAV · до ${MAX_AUDIO_MB} МБ · до ${MAX_AUDIO_MINUTES} минут`} onFiles={([file]) => setRecording({ file, uploadId: createUploadId() })}>
               {wavError && <p className="error" role="alert">{wavError}</p>}
               {recording && <div className="picker-selection">
                 <p className="selected-file-name" role="status">{recording.file.name}</p>

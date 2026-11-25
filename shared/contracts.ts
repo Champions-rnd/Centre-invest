@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
-export const MAX_AUDIO_MB = 40
+export const MAX_AUDIO_MB = 50
+export const MAX_AUDIO_BYTES = MAX_AUDIO_MB * 1024 * 1024
+export const MAX_AUDIO_MINUTES = 60
 export const MAX_VACANCY_TEXT_BYTES = 128 * 1024
 
 export const vacancyImportSchema = z.object({
