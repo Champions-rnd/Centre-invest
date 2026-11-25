@@ -8,7 +8,6 @@ import { readResume } from './resumeFile'
 import { ReportView } from '../report/ReportView'
 import { formatCount, formatDate } from './format'
 import { InterviewSort, sortInterviews, type InterviewOrder } from './InterviewSort'
-import { CandidateOverview } from './CandidateOverview'
 
 type Props = {
   candidate: CandidateDetail
@@ -86,9 +85,6 @@ export function CandidateDossier({ candidate, interview, seek, busy, onAdd, onIn
           ))}
         </ul> : <p className="muted">К этому кандидату пока не прикреплено ни одного интервью.</p>}
       </section>
-      {candidate.interviews.length > 0 && <CandidateOverview
-        key={candidate.interviews.map(item => item.id + item.updatedAt).join(';')} id={candidate.id}
-        busy={busy} openInterview={onInterview} />}
       {interview && <ReportView key={interview.id} interviewId={interview.id} result={interview.result} audioUrl={recordingUrl(interview.id)}
         audioName={interview.fileName} seek={seek} onSave={transcript => onTranscript(interview, transcript)} />}
     </>

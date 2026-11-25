@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import {
-  archiveInterviewSchema, candidateDetailSchema, candidateOverviewSchema, candidateSchema, interviewDeletionSchema, savedInterviewSchema,
+  archiveInterviewSchema, candidateDetailSchema, candidateSchema, interviewDeletionSchema, savedInterviewSchema,
   type CandidateMaterials, type CandidateProfile, type CandidateStatus, type CandidateTarget, type SavedInterview,
 } from '../../shared/archive'
 import { coachingResultSchema, roleReviewSchema, vacancyImportSchema, type CoachingRequest, type Segment, type Vacancy } from '../../shared/contracts'
@@ -73,10 +73,6 @@ export function createCandidate(id: string, profile: CandidateProfile, materials
 
 export function loadCandidate(id: string) {
   return typedRequest(candidateDetailSchema, `/api/candidates/${id}`)
-}
-
-export function requestCandidateOverview(id: string, signal: AbortSignal) {
-  return typedRequest(candidateOverviewSchema, `/api/candidates/${id}/overview`, { method: 'POST', signal })
 }
 
 export function saveCandidateStatus(id: string, status: CandidateStatus) {

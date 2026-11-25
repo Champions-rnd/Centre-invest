@@ -181,13 +181,6 @@
   .workspace-metrics > div { padding-inline: 8px; }
 }
 
-.candidate-overview { margin-top: 12px; }
-.candidate-overview h2 { margin: 0; font-size: 1.25rem; }
-.candidate-overview h2 + button { min-height: 36px; }
-.candidate-overview ul { padding: 0; margin: 12px 0 0; list-style: none; }
-.candidate-overview li { border-top: 1px solid var(--line); padding: 9px 0; }
-.candidate-overview li p { margin: 4px 0; }
-.candidate-overview li button { margin: 4px 5px 0 0; }
 .playback-rate { display: flex; align-items: center; gap: 7px; font-size: .83rem; color: var(--muted); }
 .copy-questions { margin-top: 10px; min-height: 34px; font-size: .82rem; }
 
